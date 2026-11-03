@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>房屋投资 · Property Investments</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+</head>
+<body>
+<div class="glow glow-a"></div>
+<div class="glow glow-b"></div>
+
+<header class="nav glass">
+  <div class="nav-inner">
+    <a class="brand" href="#home">房屋投资 <span>· Property Investments</span></a>
+    <nav class="nav-links">
+      <a href="#home">首页</a>
+      <a href="#listings">在售房源</a>
+      <a href="#projects">投资项目</a>
+      <a href="#rentals">出租物业</a>
+      <a href="#education">投资教育</a>
+      <a href="#agents">代理合作</a>
+      <a href="#contact">联系</a>
+    </nav>
+    <div class="nav-actions">
+      <span id="user-badge" class="user-badge hidden"></span>
+      <button id="btn-auth" class="btn btn-pill">登录 / 注册</button>
+      <button id="btn-logout" class="btn btn-ghost hidden">退出</button>
+      <button id="btn-theme" class="btn btn-ghost" title="深色/浅色">◐</button>
+    </div>
+  </div>
+  <div id="demo-bar" class="demo-bar hidden">
+    本地演示模式（未连接 Supabase）— 数据为演示数据。
+    预览身份：
+    <select id="demo-role">
+      <option value="visitor">访客</option>
+      <option value="investor">投资人（演示）</option>
+      <option value="agent">代理（演示）</option>
+      <option value="admin">管理员</option>
+    </select>
+    <span class="demo-note">演示模式下的修改不会保存。</span>
+  </div>
+</header>
+
+<main>
+  <!-- 首页 -->
+  <section id="home" class="hero">
+    <h1>南加州翻新住宅投资</h1>
+    <p class="hero-sub">以纪律化的买入价格和透明的账目，做fix-and-flip 翻新与短期借款项目。每一笔投资，钱在哪里、走到哪一步，清清楚楚。</p>
+    <div class="hero-cta">
+      <a class="btn btn-pill" href="#projects">看投资项目</a>
+      <a class="btn btn-ghost" href="#education">先学基础知识</a>
+    </div>
+    <div class="hero-cards">
+      <div class="glass card stat"><div class="stat-num">80%</div><div class="stat-label">买入纪律：出价 ≤ ARV × 80% (MAO)</div></div>
+      <div class="glass card stat"><div class="stat-num">全透明</div><div class="stat-label">投资人随时查看自己资金所在项目与状态</div></div>
+      <div class="glass card stat"><div class="stat-num">损益表</div><div class="stat-label">每个项目按统一损益表逐项记账</div></div>
+    </div>
+  </section>
+
+  <!-- 在售房源 -->
+  <section id="listings" class="section">
+    <h2>在售房源</h2>
+    <div id="listing-grid" class="grid"></div>
+  </section>
+
+  <!-- 投资项目 -->
+  <section id="projects" class="section">
+    <h2>投资项目</h2>
+    <p class="section-sub">合伙翻新项目与借款项目并列展示。访客只看公开信息；投资人登录后可看投资层数据，自己参与的项目可看本人持仓明细；完整损益表仅管理员与该项目投资人可见。</p>
+    <div id="my-money" class="glass panel hidden"></div>
+    <div id="project-grid" class="grid"></div>
+    <div id="project-detail" class="detail-wrap"></div>
+  </section>
+
+  <!-- 出租物业 -->
+  <section id="rentals" class="section">
+    <h2>出租物业</h2>
+    <p class="section-sub">长期出租物业组合。访客只看概要与年回报；投资人登录后可看自己参与物业的部分明细（租金、费用、收租汇总，不含租客个人信息）；完整明细（含租客联系方式）仅管理员可见。</p>
+    <div id="rental-grid" class="grid"></div>
+    <div id="rental-investor"></div>
+  </section>
+
+  <!-- 投资教育 -->
+  <section id="education" class="section">
+    <h2>投资教育 · 投资热点</h2>
+    <div id="rate-card" class="glass panel"></div>
+    <div class="grid" id="edu-grid">
+      <div class="glass card"><h3>市场方向：利率高位震荡</h3><p>30 年期房贷利率仍在高位，买家购买力受压，翻新项目的退出价格要按保守口径测算，ARV 取同区装修好成交的最高锚点价的 95%。</p></div>
+      <div class="glass card"><h3>市场方向：南加州库存仍紧</h3><p>南加州优质学区与大地块房源供给长期不足，翻新后零售需求稳定；大地、转角、双面通路的地块有额外溢价空间。</p></div>
+      <div class="glass card"><h3>市场方向：现金买家占比高</h3><p>高利率环境下现金成交占比上升，全现金、快过户的出价在批发市场更有竞争力，但纪律不变：不超过 MAO。</p></div>
+      <div class="glass card"><h3>基础课 1：ARV 怎么估</h3><p>ARV（装修后价值）只看同邮编或 1 英里内、180 天内成交的、装修到零售标准的 comp，优先投资者翻新转售的成交；总改项目 ARV = 最高合格 comp 的 95%。</p></div>
+      <div class="glass card"><h3>基础课 2：买入纪律</h3><p>最高可接受出价 MAO = ARV × 80%，不再另扣装修费。要价高于 MAO 的项目直接放弃，不追价。</p></div>
+      <div class="glass card"><h3>基础课 3：回报怎么算</h3><p>利润率 = 利润 ÷ 总成本；年化回报 = 利润 ÷ 总投入（总成本）÷（持有天数 ÷ 365）。看回报永远用投入口径，不用售价口径。</p></div>
+    </div>
+    <div class="glass panel subscribe">
+      <h3>订阅投资热点</h3>
+      <p>利率与市场方向更新时通知你（功能即将上线）。</p>
+      <form id="subscribe-form"><input type="email" placeholder="你的邮箱" disabled><button class="btn btn-pill" disabled>即将上线</button></form>
+    </div>
+  </section>
+
+  <!-- 代理合作 -->
+  <section id="agents" class="section">
+    <h2>代理合作</h2>
+    <p class="section-sub">外部代理可以提交房源：注册代理账号 → 提交房源 → 管理员审核 → 通过后上架展示。代理只能看到自己提交的房源及其审核状态。</p>
+    <div id="agent-area"></div>
+  </section>
+
+  <!-- 管理员后台 -->
+  <section id="admin" class="section hidden">
+    <h2>管理员后台</h2>
+    <div id="admin-area"></div>
+  </section>
+
+  <!-- 联系 -->
+  <section id="contact" class="section">
+    <h2>联系</h2>
+    <div class="glass panel">
+      <p><strong>Universal Elite Inc</strong></p>
+      <p>CA DRE #02039413</p>
+      <p>电话：(626) 510-0292</p>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <span>房屋投资 · Property Investments</span>
+  <span>Universal Elite Inc · CA DRE #02039413 · (626) 510-0292</span>
+</footer>
+
+<!-- 登录/注册弹窗 -->
+<div id="auth-modal" class="modal hidden">
+  <div class="glass modal-card">
+    <button class="modal-close" id="auth-close">×</button>
+    <h3 id="auth-title">登录</h3>
+    <form id="auth-form">
+      <label>邮箱<input type="email" id="auth-email" required autocomplete="email"></label>
+      <label>密码<input type="password" id="auth-password" required autocomplete="current-password"></label>
+      <label id="auth-name-wrap" class="hidden">姓名<input type="text" id="auth-name" autocomplete="name"></label>
+      <button class="btn btn-pill" type="submit" id="auth-submit">登录</button>
+      <p class="auth-switch"><a href="#" id="auth-toggle">没有账号？注册</a></p>
+      <p class="form-msg" id="auth-msg"></p>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
