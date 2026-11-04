@@ -706,6 +706,44 @@ async function onAuthSubmit(e) {
   closeAuth();
 }
 
+/* ---------------- password reset ---------------- */
+function openReset() { $("#reset-modal").classList.remove("hidden"); }
+function closeReset() { $("#reset-modal").classList.add("hidden"); }
+
+async function onForgotPassword(e) {
+  e.preventDefault();
+  const email = $("#auth-email").value.trim();
+  const msg = $("#auth-reset-msg");
+  msg.textContent = ""; msg.className = "form-msg";
+  if (!email) { msg.textContent = "请先填写邮箱，再点「忘记密码？」。"; msg.classList.add("err"); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+  if (error) { msg.textContent = error.message; msg.classList.add("err"); return; }
+  msg.textContent = "重置邮件已发送，请去邮箱点链接设置新密码"; msg.classList.add("ok");
+}
+
+async function onResetSubmit(e) {
+  e.preventDefault();
+  const pw = $("#reset-password").value, pw2 = $("#reset-password2").value, msg = $("#reset-msg");
+  msg.textContent = ""; msg.className = "form-msg";
+  if (pw.length < 6) { msg.textContent = "密码至少需要 6 位。"; msg.classList.add("err"); return; }
+  if (pw !== pw2) { msg.textContent = "两次输入的密码不一致。"; msg.classList.add("err"); return; }
+  const { error } = await sb.auth.updateUser({ password: pw });
+  if (error) { msg.textContent = error.message; msg.classList.add("err"); return; }
+  closeReset();
+  await sb.auth.signOut(); // 退出重置会话，回到未登录状态用新密码登录
+  authMode = "login";
+  $("#auth-title").textContent = "登录";
+  $("#auth-submit").textContent = "登录";
+  $("#auth-name-wrap").classList.add("hidden");
+  $("#auth-toggle").textContent = "没有账号？注册";
+  $("#auth-forgot").classList.remove("hidden");
+  const amsg = $("#auth-msg");
+  amsg.textContent = "密码已更新，请用新密码登录"; amsg.className = "form-msg ok";
+  openAuth();
+}
+
 /* ---------------- orchestration ---------------- */
 async function refresh() {
   await loadPublic();
@@ -742,13 +780,20 @@ async function init() {
       $("#auth-submit").textContent = authMode === "login" ? "登录" : "注册";
       $("#auth-name-wrap").classList.toggle("hidden", authMode === "login");
       $("#auth-toggle").textContent = authMode === "login" ? "没有账号？注册" : "已有账号？登录";
+      $("#auth-forgot").classList.toggle("hidden", authMode === "signup");
+      $("#auth-reset-msg").textContent = ""; $("#auth-reset-msg").className = "form-msg";
     });
     $("#auth-form").addEventListener("submit", onAuthSubmit);
+    $("#auth-forgot").addEventListener("click", onForgotPassword);
+    $("#reset-form").addEventListener("submit", onResetSubmit);
+    $("#reset-close").addEventListener("click", closeReset);
     $("#btn-logout").addEventListener("click", async () => { await sb.auth.signOut(); });
     const { data } = await sb.auth.getSession();
     state.user = data.session ? data.session.user : null;
-    sb.auth.onAuthStateChange(async (_e, session) => {
+    if (window.location.hash.indexOf("type=recovery") >= 0) openReset();
+    sb.auth.onAuthStateChange(async (event, session) => {
       state.user = session ? session.user : null;
+      if (event === "PASSWORD_RECOVERY") openReset();
       await syncAuthUI(); await refresh();
     });
   }

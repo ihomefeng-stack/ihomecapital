@@ -146,8 +146,23 @@
       <label>密码<input type="password" id="auth-password" required autocomplete="current-password"></label>
       <label id="auth-name-wrap" class="hidden">姓名<input type="text" id="auth-name" autocomplete="name"></label>
       <button class="btn btn-pill" type="submit" id="auth-submit">登录</button>
-      <p class="auth-switch"><a href="#" id="auth-toggle">没有账号？注册</a></p>
+      <p class="auth-switch"><a href="#" id="auth-toggle">没有账号？注册</a> · <a href="#" id="auth-forgot">忘记密码？</a></p>
       <p class="form-msg" id="auth-msg"></p>
+      <p class="form-msg" id="auth-reset-msg"></p>
+    </form>
+  </div>
+</div>
+
+<!-- 设置新密码弹窗（密码重置邮件链接落地时打开） -->
+<div id="reset-modal" class="modal hidden">
+  <div class="glass modal-card">
+    <button class="modal-close" id="reset-close">×</button>
+    <h3>设置新密码</h3>
+    <form id="reset-form">
+      <label>新密码<input type="password" id="reset-password" required autocomplete="new-password"></label>
+      <label>再次输入新密码<input type="password" id="reset-password2" required autocomplete="new-password"></label>
+      <button class="btn btn-pill" type="submit" id="reset-submit">保存新密码</button>
+      <p class="form-msg" id="reset-msg"></p>
     </form>
   </div>
 </div>
