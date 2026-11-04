@@ -231,12 +231,13 @@ function renderProjects() { $("#project-grid").innerHTML = state.projects.map(pr
 
 function renderMyMoney() {
   const box = $("#my-money");
-  if (state.role !== "investor" || !state.myInvestments.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  if (!["investor", "admin"].includes(state.role) || !state.myInvestments.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
   const total = state.myInvestments.reduce((s, i) => s + Number(i.amount || 0), 0);
   box.classList.remove("hidden");
-  box.innerHTML = `<h3>我的钱在哪里</h3>` + state.myInvestments.map((i) => {
+  box.innerHTML = `<h3>${state.role === "admin" ? "投资人持仓（管理员）" : "我的钱在哪里"}</h3>` + state.myInvestments.map((i) => {
     const p = state.projects.find((x) => x.id === i.project_id) || {};
-    return `<div class="list-item"><strong>${esc(p.title || i.project_id)}</strong> — ${money(i.amount)} · 状态：${esc(i.status || p.status || "")}${p.type === "lending" ? " · 利率：" + (p.interest_rate == null ? "待定" : pct(p.interest_rate)) : ""} · 已分配 ${money(i.distributed)}</div>`;
+    const pnlBtn = p.type === "flip" ? ` <button class="btn small" onclick="showDetail('${i.project_id}')">查看项目损益表</button>` : "";
+    return `<div class="list-item"><strong>${esc(p.title || i.project_id)}</strong> — ${money(i.amount)} · 状态：${esc(i.status || p.status || "")}${p.type === "lending" ? " · 利率：" + (p.interest_rate == null ? "待定" : pct(p.interest_rate)) : ""} · 已分配 ${money(i.distributed)}${pnlBtn}</div>`;
   }).join("") + `<div class="list-item"><strong>合计投入：${money(total)}</strong></div>`;
 }
 
