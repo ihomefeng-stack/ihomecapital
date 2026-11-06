@@ -984,7 +984,7 @@ function adminRentalsTab(body) {
   </div>
 
   <div class="glass panel">
-    <h3>新增出租物业</h3>
+    <h3 id="rp-title">新增出租物业</h3>
     <form id="rp-form"><div class="form-grid">
       <label>名称<input name="label" required placeholder="如 Elliott Ave 七户"></label>
       <label>类型<select name="type"><option value="multi_family">多户 Multi-family</option><option value="single_family">独立屋 Single-family</option></select></label>
@@ -999,9 +999,9 @@ function adminRentalsTab(body) {
       <label>保险到期日<input name="insurance_due_date" type="date"></label>
       <label>年地产税<input name="property_tax_annual" type="number" step="0.01"></label>
     </div><label>备注<textarea name="notes"></textarea></label>
-    <div class="row-actions"><button class="btn btn-pill" type="submit">添加物业</button></div>
+    <div class="row-actions"><button class="btn btn-pill" type="submit" id="rp-submit">添加物业</button><button class="btn small" type="button" id="rp-cancel" style="display:none" onclick="cancelEditProp()">取消编辑</button></div>
     <p class="form-msg" id="rp-msg"></p></form>
-    ${state.rentalProps.map((p) => `<div class="list-item">${esc(p.label)}（${p.type === "multi_family" ? "多户" : "独立屋"}）<button class="btn small danger" onclick="delRentalProp('${p.id}')">删除</button></div>`).join("")}
+    ${state.rentalProps.map((p) => `<div class="list-item">${esc(p.label)}（${p.type === "multi_family" ? "多户" : "独立屋"}）<button class="btn small" onclick="editRentalProp('${p.id}')">编辑</button> <button class="btn small danger" onclick="delRentalProp('${p.id}')">删除</button></div>`).join("")}
   </div>
 
   <div class="glass panel">
@@ -1073,8 +1073,16 @@ function adminRentalsTab(body) {
       insurance_premium: numOrNull(f.get("insurance_premium")), insurance_due_date: f.get("insurance_due_date") || null,
       property_tax_annual: numOrNull(f.get("property_tax_annual")), notes: f.get("notes") || null };
     if (DEMO_MODE) { msg.textContent = "演示模式：不保存。"; msg.className = "form-msg"; return; }
-    const { error } = await sb.from("rental_properties").insert(row);
-    msg.textContent = error ? error.message : "已添加。"; msg.className = "form-msg " + (error ? "err" : "ok");
+    let error;
+    if (window.__editingPropId) {
+      ({ error } = await sb.from("rental_properties").update(row).eq("id", window.__editingPropId));
+      if (!error) window.__editingPropId = null;
+      msg.textContent = error ? error.message : "已保存修改。";
+    } else {
+      ({ error } = await sb.from("rental_properties").insert(row));
+      msg.textContent = error ? error.message : "已添加。";
+    }
+    msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
   });
   $("#unit-form").addEventListener("submit", async (e) => {
@@ -1150,6 +1158,35 @@ window.delRentalProp = async function (id) {
   if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
   const { error } = await sb.from("rental_properties").delete().eq("id", id);
   if (error) alert("删除失败：" + error.message); else await refresh();
+};
+
+window.editRentalProp = function (id) {
+  const p = state.rentalProps.find((x) => x.id === id);
+  if (!p) return;
+  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  const form = $("#rp-form"); if (!form) return;
+  const set = (n, v) => { const el = form.elements[n]; if (el) el.value = v == null ? "" : v; };
+  set("label", p.label); set("type", p.type || "multi_family"); set("address", p.address); set("city", p.city); set("zip", p.zip);
+  set("owner_entity", p.owner_entity); set("photo_url", p.photo_url); set("project_id", p.project_id || "");
+  set("purchase_price", p.purchase_price); set("total_investment", p.total_investment);
+  set("insurance_carrier", p.insurance_carrier); set("insurance_policy_no", p.insurance_policy_no);
+  set("insurance_premium", p.insurance_premium); set("insurance_due_date", p.insurance_due_date);
+  set("property_tax_annual", p.property_tax_annual); set("notes", p.notes);
+  window.__editingPropId = id;
+  const title = $("#rp-title"); if (title) title.textContent = "编辑出租物业：" + (p.label || "");
+  const btn = $("#rp-submit"); if (btn) btn.textContent = "保存修改";
+  const cancel = $("#rp-cancel"); if (cancel) cancel.style.display = "";
+  const msg = $("#rp-msg"); if (msg) { msg.textContent = "正在编辑现有物业，改完点「保存修改」；不改了点「取消编辑」。"; msg.className = "form-msg"; }
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+window.cancelEditProp = function () {
+  window.__editingPropId = null;
+  const form = $("#rp-form"); if (form) form.reset();
+  const title = $("#rp-title"); if (title) title.textContent = "新增出租物业";
+  const btn = $("#rp-submit"); if (btn) btn.textContent = "添加物业";
+  const cancel = $("#rp-cancel"); if (cancel) cancel.style.display = "none";
+  const msg = $("#rp-msg"); if (msg) msg.textContent = "";
 };
 
 window.delRenoLine = async function (id) {
