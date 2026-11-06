@@ -1079,6 +1079,8 @@ function adminRentalsTab(body) {
     <div class="kv"><span>未收户数</span><strong>${unpaid.length}</strong></div>
     ${rollRows || "<p>暂无在租租客。</p>"}
     <div class="row-actions"><button class="btn small" id="gen-bills">生成本月应收记录</button></div>
+    <h4>收款记录（可修正 / 删除）</h4>
+    ${state.rentalPayments.slice(0, 40).map((pm) => { const t = state.rentalTenants.find((x) => x.id === pm.tenant_id); return `<div class="list-item">${esc(pm.period || "")} · ${esc(t ? t.name : "")} · 应收 $${Number(pm.amount_due || 0).toLocaleString()} · 已收 $${Number(pm.amount_paid || 0).toLocaleString()}${pm.paid_date ? " · " + esc(pm.paid_date) : ""}${pm.method ? " · " + esc(pm.method) : ""} <button class="btn small" onclick="fixPayment('${pm.id}')">修正</button> <button class="btn small danger" onclick="delPayment('${pm.id}')">删除</button></div>`; }).join("") || "<p>暂无收款记录。</p>"}
     <h4>催缴名单（短信）</h4>
     ${unpaid.length ? unpaid.map((r) => `<div class="list-item">${esc(r.tenant_name)} · ${esc(r.unit_label)} · $${Number(Number(r.rent_amount || 0) - Number(r.amount_paid || 0)).toLocaleString()} 未付 · <a href="sms:${esc(r.tenant_phone || "")}">发短信</a> · <a href="tel:${esc(r.tenant_phone || "")}">${esc(r.tenant_phone || "")}</a></div>`).join("") : "<p>本月全部收齐 🎉</p>"}
     <p class="form-msg">催缴模板（英文）：${esc(smsText)} — 点「发短信」用手机短信单发；群发功能需接短信服务商（Twilio）后上线。</p>
@@ -1292,6 +1294,25 @@ window.markPaidPrompt = async function (tenantId, due, alreadyPaid) {
     { onConflict: "tenant_id,period" });
   alert(error ? "登记失败：" + error.message : "已登记。");
   if (!error) await refresh();
+};
+
+window.fixPayment = async function (id) {
+  const pm = state.rentalPayments.find((x) => x.id === id);
+  if (!pm) return;
+  const v = prompt("修正已收金额（应收 $" + Number(pm.amount_due || 0).toLocaleString() + "，当前已收 $" + Number(pm.amount_paid || 0).toLocaleString() + "）:", pm.amount_paid || 0);
+  if (v == null) return;
+  const amt = Number(v); if (isNaN(amt) || amt < 0) { alert("金额无效。"); return; }
+  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  const { error } = await sb.from("rent_payments").update({ amount_paid: amt, paid_date: amt > 0 ? (pm.paid_date || new Date().toISOString().slice(0, 10)) : null }).eq("id", id);
+  alert(error ? "修正失败：" + error.message : "已修正。");
+  if (!error) await refresh();
+};
+
+window.delPayment = async function (id) {
+  if (!confirm("确认删除这条收款记录？")) return;
+  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  const { error } = await sb.from("rent_payments").delete().eq("id", id);
+  if (error) alert("删除失败：" + error.message); else await refresh();
 };
 
 window.delRentalProp = async function (id) {
