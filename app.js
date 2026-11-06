@@ -158,12 +158,14 @@ async function loadMyInvestments() {
 async function loadAdminData() {
   if (state.role !== "admin") return;
   if (DEMO_MODE) { state.profiles = DEMO.profiles.slice(); state.submissions = DEMO.submissions.slice(); return; }
-  const [pf, sub2] = await Promise.all([
+  const [pf, sub2, lst2] = await Promise.all([
     sb.from("profiles").select("*").order("created_at"),
-    sb.from("agent_submissions").select("*").order("created_at", { ascending: false })
+    sb.from("agent_submissions").select("*").order("created_at", { ascending: false }),
+    sb.from("listings").select("*").order("created_at", { ascending: false })
   ]);
   state.profiles = pf.data || [];
   state.submissions = sub2.data || [];
+  state.adminListings = lst2.data || [];
 }
 
 async function loadAgentData() {
@@ -434,6 +436,7 @@ function renderAdmin() {
     <button data-tab="review">代理审核 <span id="review-count"></span></button>
     <button data-tab="roles">账号角色</button>
     <button data-tab="rentals">出租管理</button>
+    <button data-tab="listings">房源管理</button>
   </div>
   <div id="admin-tab-body"></div>`;
   $$("#admin-area .tabs button").forEach((b) => b.addEventListener("click", () => {
@@ -452,6 +455,7 @@ function renderAdminTab(tab) {
   if (tab === "review") return adminReviewTab(body);
   if (tab === "roles") return adminRolesTab(body);
   if (tab === "rentals") return adminRentalsTab(body);
+  if (tab === "listings") return adminListingsTab(body);
 }
 
 function adminProjectTab(body) {
@@ -590,6 +594,105 @@ async function onDeleteProject() {
   msg.textContent = error ? error.message : "已删除。"; msg.className = error ? "form-msg err" : "form-msg ok";
   if (!error) await refresh();
 }
+
+function adminListingsTab(body) {
+  const listings = (state.adminListings && state.adminListings.length) ? state.adminListings : state.listings;
+  const r = state.rates || {};
+  body.innerHTML = `
+  <div class="glass panel">
+    <h3 id="lst-title">新增在售房源</h3>
+    <form id="lst-form"><div class="form-grid">
+      <label>标题<input name="title" required placeholder="如 21435 Via Pepita"></label>
+      <label>地址<input name="address"></label><label>城市<input name="city"></label>
+      <label>价格<input name="price" type="number" step="0.01"></label>
+      <label>卧室<input name="beds" type="number" step="0.5"></label><label>卫生间<input name="baths" type="number" step="0.5"></label>
+      <label>面积 sqft<input name="sqft" type="number"></label>
+      <label>状态<input name="status" value="在售"></label>
+      <label>Zillow 链接<input name="zillow_url"></label>
+      <label>公开显示<select name="is_public"><option value="true">公开</option><option value="false">隐藏</option></select></label>
+    </div><div class="row-actions"><button class="btn btn-pill" type="submit" id="lst-submit">添加房源</button><button class="btn small" type="button" id="lst-cancel" style="display:none" onclick="cancelEditListing()">取消编辑</button></div>
+    <p class="form-msg" id="lst-msg"></p></form>
+    ${listings.map((l) => `<div class="list-item">${esc(l.title || "")} · ${esc(l.address || "")}${l.city ? ", " + esc(l.city) : ""} · ${money(l.price)} · ${esc(l.status || "")}${l.is_public === false ? " · 已隐藏" : ""} <button class="btn small" onclick="editListing('${l.id}')">编辑</button> <button class="btn small danger" onclick="delListing('${l.id}')">删除</button></div>`).join("") || "<p>暂无房源。</p>"}
+  </div>
+
+  <div class="glass panel">
+    <h3>利率快照（首页展示，改完保存即更新）</h3>
+    <form id="rate-form"><div class="form-grid">
+      <label>数据日期<input name="rate_date" type="date" value="${esc(r.rate_date || "")}"></label>
+      <label>30 年期利率 %<input name="rate_30y" type="number" step="0.01" value="${r.rate_30y ?? ""}"></label>
+      <label>15 年期利率 %<input name="rate_15y" type="number" step="0.01" value="${r.rate_15y ?? ""}"></label>
+      <label>来源<input name="source" value="${esc(r.source || "Freddie Mac PMMS")}"></label>
+    </div><div class="row-actions"><button class="btn btn-pill" type="submit">保存利率</button></div>
+    <p class="form-msg" id="rate-msg"></p></form>
+  </div>`;
+
+  const numOrNull = (v) => (v === "" || v == null ? null : Number(v));
+  $("#lst-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); const f = new FormData(e.target), msg = $("#lst-msg");
+    const row = { title: f.get("title"), address: f.get("address") || null, city: f.get("city") || null,
+      price: numOrNull(f.get("price")), beds: numOrNull(f.get("beds")), baths: numOrNull(f.get("baths")),
+      sqft: numOrNull(f.get("sqft")), status: f.get("status") || "在售", zillow_url: f.get("zillow_url") || null,
+      is_public: f.get("is_public") === "true" };
+    if (DEMO_MODE) { msg.textContent = "演示模式：不保存。"; msg.className = "form-msg"; return; }
+    let error;
+    if (window.__editingListingId) {
+      ({ error } = await sb.from("listings").update(row).eq("id", window.__editingListingId));
+      if (!error) window.__editingListingId = null;
+      msg.textContent = error ? error.message : "已保存修改。";
+    } else {
+      ({ error } = await sb.from("listings").insert(row));
+      msg.textContent = error ? error.message : "已添加。";
+    }
+    msg.className = "form-msg " + (error ? "err" : "ok");
+    if (!error) await refresh();
+  });
+  $("#rate-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); const f = new FormData(e.target), msg = $("#rate-msg");
+    const row = { rate_date: f.get("rate_date") || new Date().toISOString().slice(0, 10),
+      rate_30y: numOrNull(f.get("rate_30y")), rate_15y: numOrNull(f.get("rate_15y")), source: f.get("source") || null };
+    if (DEMO_MODE) { msg.textContent = "演示模式：不保存。"; msg.className = "form-msg"; return; }
+    let error;
+    if (state.rates && state.rates.id) ({ error } = await sb.from("education_rates").update(row).eq("id", state.rates.id));
+    else ({ error } = await sb.from("education_rates").insert(row));
+    msg.textContent = error ? error.message : "已保存，首页利率已更新。";
+    msg.className = "form-msg " + (error ? "err" : "ok");
+    if (!error) await refresh();
+  });
+}
+
+window.editListing = function (id) {
+  const src = (state.adminListings && state.adminListings.length) ? state.adminListings : state.listings;
+  const l = src.find((x) => x.id === id);
+  if (!l) return;
+  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  const form = $("#lst-form"); if (!form) return;
+  const set = (n, v) => { const el = form.elements[n]; if (el) el.value = v == null ? "" : v; };
+  set("title", l.title); set("address", l.address); set("city", l.city); set("price", l.price);
+  set("beds", l.beds); set("baths", l.baths); set("sqft", l.sqft); set("status", l.status || "在售");
+  set("zillow_url", l.zillow_url); set("is_public", l.is_public === false ? "false" : "true");
+  window.__editingListingId = id;
+  const title = $("#lst-title"); if (title) title.textContent = "编辑房源：" + (l.title || "");
+  const btn = $("#lst-submit"); if (btn) btn.textContent = "保存修改";
+  const cancel = $("#lst-cancel"); if (cancel) cancel.style.display = "";
+  const msg = $("#lst-msg"); if (msg) { msg.textContent = "正在编辑现有房源，改完点「保存修改」；不改了点「取消编辑」。"; msg.className = "form-msg"; }
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+window.cancelEditListing = function () {
+  window.__editingListingId = null;
+  const form = $("#lst-form"); if (form) form.reset();
+  const title = $("#lst-title"); if (title) title.textContent = "新增在售房源";
+  const btn = $("#lst-submit"); if (btn) btn.textContent = "添加房源";
+  const cancel = $("#lst-cancel"); if (cancel) cancel.style.display = "none";
+  const msg = $("#lst-msg"); if (msg) msg.textContent = "";
+};
+
+window.delListing = async function (id) {
+  if (!confirm("确认删除该房源？")) return;
+  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  const { error } = await sb.from("listings").delete().eq("id", id);
+  if (error) alert("删除失败：" + error.message); else await refresh();
+};
 
 function adminBindTab(body) {
   const invs = state.profiles.filter((p) => p.role === "investor");
@@ -1006,6 +1109,7 @@ function adminRentalsTab(body) {
 
   <div class="glass panel">
     <h3>新增户 / 租客</h3>
+    <h4 id="unit-title">新增户</h4>
     <form id="unit-form"><div class="form-grid">
       <label>物业<select name="property_id">${propOpts}</select></label>
       <label>户号<input name="unit_label" required placeholder="A / 101 / 主屋"></label>
@@ -1016,7 +1120,9 @@ function adminRentalsTab(body) {
       <label>煤气<select name="util_gas"><option value="tenant">租客付</option><option value="landlord">房东付</option></select></label>
       <label>垃圾<select name="util_trash"><option value="landlord">房东付</option><option value="tenant">租客付</option></select></label>
       <label>状态<select name="status"><option value="occupied">在租</option><option value="vacant">空置</option></select></label>
-    </div><div class="row-actions"><button class="btn small" type="submit">添加户</button></div><p class="form-msg" id="unit-msg"></p></form>
+    </div><div class="row-actions"><button class="btn small" type="submit" id="unit-submit">添加户</button><button class="btn small" type="button" id="unit-cancel" style="display:none" onclick="cancelEditUnit()">取消编辑</button></div><p class="form-msg" id="unit-msg"></p></form>
+    ${state.rentalUnits.map((u) => { const p = state.rentalProps.find((x) => x.id === u.property_id); return `<div class="list-item">${esc(p ? p.label : "")} · ${esc(u.unit_label)} · ${u.beds ?? "—"}卧/${u.baths ?? "—"}卫 · 市场租金 $${Number(u.market_rent || 0).toLocaleString()} · ${u.status === "occupied" ? "在租" : "空置"} <button class="btn small" onclick="editUnit('${u.id}')">编辑</button> <button class="btn small danger" onclick="delUnit('${u.id}')">删除</button></div>`; }).join("")}
+    <h4 id="tenant-title">新增租客</h4>
     <form id="tenant-form"><div class="form-grid">
       <label>户<select name="unit_id">${unitOpts}</select></label>
       <label>租客姓名<input name="name" required></label>
@@ -1026,12 +1132,12 @@ function adminRentalsTab(body) {
       <label>每月到期日<input name="due_day" type="number" value="1" min="1" max="28"></label>
       <label>押金<input name="deposit" type="number" step="0.01"></label>
       <label>租约开始<input name="lease_start" type="date"></label><label>租约结束<input name="lease_end" type="date"></label>
-    </div><div class="row-actions"><button class="btn small" type="submit">添加租客</button></div><p class="form-msg" id="tenant-msg"></p></form>
-    ${state.rentalTenants.map((t) => { const u = state.rentalUnits.find((x) => x.id === t.unit_id); return `<div class="list-item">${esc(t.name)} · ${esc(u ? u.unit_label : "")} · $${Number(t.rent_amount || 0).toLocaleString()}/月 · ${esc(t.phone || "")} · 租约至 ${esc(t.lease_end || "—")} <button class="btn small danger" onclick="delTenant('${t.id}')">删除</button></div>`; }).join("")}
+    </div><div class="row-actions"><button class="btn small" type="submit" id="tenant-submit">添加租客</button><button class="btn small" type="button" id="tenant-cancel" style="display:none" onclick="cancelEditTenant()">取消编辑</button></div><p class="form-msg" id="tenant-msg"></p></form>
+    ${state.rentalTenants.map((t) => { const u = state.rentalUnits.find((x) => x.id === t.unit_id); return `<div class="list-item">${esc(t.name)} · ${esc(u ? u.unit_label : "")} · $${Number(t.rent_amount || 0).toLocaleString()}/月 · ${esc(t.phone || "")} · 租约至 ${esc(t.lease_end || "—")} <button class="btn small" onclick="editTenant('${t.id}')">编辑</button> <button class="btn small danger" onclick="delTenant('${t.id}')">删除</button></div>`; }).join("")}
   </div>
 
   <div class="glass panel">
-    <h3>新增费用</h3>
+    <h3 id="exp-title">新增费用</h3>
     <form id="exp-form"><div class="form-grid">
       <label>物业<select name="property_id">${propOpts}</select></label>
       <label>类别<select name="category">${Object.keys(EXP_CATS).map((k) => `<option value="${k}">${EXP_CATS[k]}</option>`).join("")}</select></label>
@@ -1040,11 +1146,12 @@ function adminRentalsTab(body) {
       <label>到期日<input name="due_date" type="date"></label><label>已付日<input name="paid_date" type="date"></label>
       <label>供应商<input name="vendor"></label>
       <label>周期<select name="recurring"><option value="one_time">一次性</option><option value="monthly">每月</option><option value="quarterly">每季</option><option value="semiannual">每半年</option><option value="annual">每年</option></select></label>
-    </div><div class="row-actions"><button class="btn small" type="submit">添加费用</button></div><p class="form-msg" id="exp-msg"></p></form>
+    </div><div class="row-actions"><button class="btn small" type="submit" id="exp-submit">添加费用</button><button class="btn small" type="button" id="exp-cancel" style="display:none" onclick="cancelEditExpense()">取消编辑</button></div><p class="form-msg" id="exp-msg"></p></form>
+    ${state.rentalExpenses.slice().sort((a, b) => String(b.due_date || "").localeCompare(String(a.due_date || ""))).slice(0, 40).map((e) => { const p = state.rentalProps.find((x) => x.id === e.property_id); return `<div class="list-item">${esc(p ? p.label : "")} · ${EXP_CATS[e.category] || e.category} · ${esc(e.description || "")} · $${Number(e.amount || 0).toLocaleString()} · 到期 ${esc(e.due_date || "—")}${e.paid_date ? " · 已付 " + esc(e.paid_date) : " · 未付"} <button class="btn small" onclick="editExpense('${e.id}')">编辑</button> <button class="btn small danger" onclick="delExpense('${e.id}')">删除</button></div>`; }).join("")}
   </div>
 
   <div class="glass panel">
-    <h3>翻新维修账（计入总投资额）</h3>
+    <h3 id="reno-title">翻新维修账（计入总投资额）</h3>
     <form id="reno-form"><div class="form-grid">
       <label>物业<select name="property_id">${propOpts}</select></label>
       <label>分类<select name="kind"><option value="pre_reno">拿房前翻新</option><option value="renovation">翻新</option><option value="repair">维修</option><option value="eviction">赶租客 / 清退</option><option value="other">其他</option></select></label>
@@ -1052,14 +1159,14 @@ function adminRentalsTab(body) {
       <label>金额<input name="amount" type="number" step="0.01" required></label>
       <label>日期<input name="spent_date" type="date"></label>
       <label>备注<input name="note"></label>
-    </div><div class="row-actions"><button class="btn small" type="submit">添加一笔</button></div><p class="form-msg" id="reno-msg"></p></form>
+    </div><div class="row-actions"><button class="btn small" type="submit" id="reno-submit">添加一笔</button><button class="btn small" type="button" id="reno-cancel" style="display:none" onclick="cancelEditRenoLine()">取消编辑</button></div><p class="form-msg" id="reno-msg"></p></form>
     ${state.rentalProps.map((p) => {
       const lines = state.rentalReno.filter((l) => l.property_id === p.id);
       if (!lines.length) return "";
       const tot = lines.reduce((s, l) => s + Number(l.amount || 0), 0);
       const base = Number(p.purchase_price != null ? p.purchase_price : (p.total_investment || 0));
       return `<h4>${esc(p.label)} — 翻新维修合计 $${tot.toLocaleString()} · 买入价 $${base.toLocaleString()} · 总投资额 $${(base + tot).toLocaleString()}</h4>` +
-        lines.map((l) => `<div class="list-item">${RENO_KINDS[l.kind] || ""} · ${esc(l.item)} · $${Number(l.amount || 0).toLocaleString()} · ${esc(l.spent_date || "—")} <button class="btn small danger" onclick="delRenoLine('${l.id}')">删除</button></div>`).join("");
+        lines.map((l) => `<div class="list-item">${RENO_KINDS[l.kind] || ""} · ${esc(l.item)} · $${Number(l.amount || 0).toLocaleString()} · ${esc(l.spent_date || "—")} <button class="btn small" onclick="editRenoLine('${l.id}')">编辑</button> <button class="btn small danger" onclick="delRenoLine('${l.id}')">删除</button></div>`).join("");
     }).join("")}
   </div>`;
 
@@ -1091,8 +1198,16 @@ function adminRentalsTab(body) {
       sqft: numOrNull(f.get("sqft")), market_rent: numOrNull(f.get("market_rent")), util_water: f.get("util_water"), util_electric: f.get("util_electric"),
       util_gas: f.get("util_gas"), util_trash: f.get("util_trash"), status: f.get("status") };
     if (DEMO_MODE) { msg.textContent = "演示模式：不保存。"; return; }
-    const { error } = await sb.from("units").insert(row);
-    msg.textContent = error ? error.message : "已添加。"; msg.className = "form-msg " + (error ? "err" : "ok");
+    let error;
+    if (window.__editingUnitId) {
+      ({ error } = await sb.from("units").update(row).eq("id", window.__editingUnitId));
+      if (!error) window.__editingUnitId = null;
+      msg.textContent = error ? error.message : "已保存修改。";
+    } else {
+      ({ error } = await sb.from("units").insert(row));
+      msg.textContent = error ? error.message : "已添加。";
+    }
+    msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
   });
   $("#tenant-form").addEventListener("submit", async (e) => {
@@ -1101,9 +1216,19 @@ function adminRentalsTab(body) {
       rent_amount: numOrNull(f.get("rent_amount")), due_day: numOrNull(f.get("due_day")) || 1, deposit: numOrNull(f.get("deposit")),
       lease_start: f.get("lease_start") || null, lease_end: f.get("lease_end") || null, status: "active" };
     if (DEMO_MODE) { msg.textContent = "演示模式：不保存。"; return; }
-    const { data, error } = await sb.from("tenants").insert(row).select("id").single();
-    if (!error && data) await sb.from("units").update({ status: "occupied" }).eq("id", row.unit_id);
-    msg.textContent = error ? error.message : "已添加。"; msg.className = "form-msg " + (error ? "err" : "ok");
+    let error;
+    if (window.__editingTenantId) {
+      const upd = Object.assign({}, row); delete upd.status;
+      ({ error } = await sb.from("tenants").update(upd).eq("id", window.__editingTenantId));
+      if (!error) { window.__editingTenantId = null; await sb.from("units").update({ status: "occupied" }).eq("id", row.unit_id); }
+      msg.textContent = error ? error.message : "已保存修改。";
+    } else {
+      const res = await sb.from("tenants").insert(row).select("id").single();
+      error = res.error;
+      if (!error && res.data) await sb.from("units").update({ status: "occupied" }).eq("id", row.unit_id);
+      msg.textContent = error ? error.message : "已添加。";
+    }
+    msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
   });
   $("#exp-form").addEventListener("submit", async (e) => {
@@ -1112,8 +1237,16 @@ function adminRentalsTab(body) {
       amount: numOrNull(f.get("amount")), due_date: f.get("due_date") || null, paid_date: f.get("paid_date") || null,
       vendor: f.get("vendor") || null, recurring: f.get("recurring") };
     if (DEMO_MODE) { msg.textContent = "演示模式：不保存。"; return; }
-    const { error } = await sb.from("property_expenses").insert(row);
-    msg.textContent = error ? error.message : "已添加。"; msg.className = "form-msg " + (error ? "err" : "ok");
+    let error;
+    if (window.__editingExpId) {
+      ({ error } = await sb.from("property_expenses").update(row).eq("id", window.__editingExpId));
+      if (!error) window.__editingExpId = null;
+      msg.textContent = error ? error.message : "已保存修改。";
+    } else {
+      ({ error } = await sb.from("property_expenses").insert(row));
+      msg.textContent = error ? error.message : "已添加。";
+    }
+    msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
   });
   $("#reno-form").addEventListener("submit", async (e) => {
@@ -1121,8 +1254,16 @@ function adminRentalsTab(body) {
     const row = { property_id: f.get("property_id"), kind: f.get("kind") || "renovation", item: f.get("item"), amount: numOrNull(f.get("amount")),
       spent_date: f.get("spent_date") || null, note: f.get("note") || null };
     if (DEMO_MODE) { msg.textContent = "演示模式：不保存。"; return; }
-    const { error } = await sb.from("rental_reno_lines").insert(row);
-    msg.textContent = error ? error.message : "已添加。"; msg.className = "form-msg " + (error ? "err" : "ok");
+    let error;
+    if (window.__editingRenoId) {
+      ({ error } = await sb.from("rental_reno_lines").update(row).eq("id", window.__editingRenoId));
+      if (!error) window.__editingRenoId = null;
+      msg.textContent = error ? error.message : "已保存修改。";
+    } else {
+      ({ error } = await sb.from("rental_reno_lines").insert(row));
+      msg.textContent = error ? error.message : "已添加。";
+    }
+    msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
   });
 }
@@ -1188,6 +1329,81 @@ window.cancelEditProp = function () {
   const cancel = $("#rp-cancel"); if (cancel) cancel.style.display = "none";
   const msg = $("#rp-msg"); if (msg) msg.textContent = "";
 };
+
+function fillForm(formId, obj, fields) {
+  const form = $(formId); if (!form) return null;
+  const set = (n, v) => { const el = form.elements[n]; if (el) el.value = v == null ? "" : v; };
+  fields.forEach((n) => set(n, obj[n]));
+  return form;
+}
+function editUi(formId, titleId, titleText, btnId, btnText, cancelId, msgId) {
+  const form = $(formId); if (!form) return;
+  const title = $(titleId); if (title) title.textContent = titleText;
+  const btn = $(btnId); if (btn) btn.textContent = btnText;
+  const cancel = $(cancelId); if (cancel) cancel.style.display = "";
+  const msg = $(msgId); if (msg) { msg.textContent = "正在编辑现有记录，改完点「保存修改」；不改了点「取消编辑」。"; msg.className = "form-msg"; }
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function cancelUi(flagName, formId, titleId, titleText, btnId, btnText, cancelId, msgId) {
+  window[flagName] = null;
+  const form = $(formId); if (form) form.reset();
+  const title = $(titleId); if (title) title.textContent = titleText;
+  const btn = $(btnId); if (btn) btn.textContent = btnText;
+  const cancel = $(cancelId); if (cancel) cancel.style.display = "none";
+  const msg = $(msgId); if (msg) msg.textContent = "";
+}
+
+window.editUnit = function (id) {
+  const u = state.rentalUnits.find((x) => x.id === id);
+  if (!u) return;
+  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (!fillForm("#unit-form", u, ["property_id", "unit_label", "beds", "baths", "sqft", "market_rent", "util_water", "util_electric", "util_gas", "util_trash", "status"])) return;
+  window.__editingUnitId = id;
+  editUi("#unit-form", "#unit-title", "编辑户：" + (u.unit_label || ""), "#unit-submit", "保存修改", "#unit-cancel", "#unit-msg");
+};
+window.cancelEditUnit = function () { cancelUi("__editingUnitId", "#unit-form", "#unit-title", "新增户", "#unit-submit", "添加户", "#unit-cancel", "#unit-msg"); };
+window.delUnit = async function (id) {
+  if (!confirm("确认删除该户？（该户下的租客会一并受影响）")) return;
+  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  const { error } = await sb.from("units").delete().eq("id", id);
+  if (error) alert("删除失败：" + error.message); else await refresh();
+};
+
+window.editTenant = function (id) {
+  const t = state.rentalTenants.find((x) => x.id === id);
+  if (!t) return;
+  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (!fillForm("#tenant-form", t, ["unit_id", "name", "phone", "email", "rent_amount", "due_day", "deposit", "lease_start", "lease_end"])) return;
+  window.__editingTenantId = id;
+  editUi("#tenant-form", "#tenant-title", "编辑租客：" + (t.name || ""), "#tenant-submit", "保存修改", "#tenant-cancel", "#tenant-msg");
+};
+window.cancelEditTenant = function () { cancelUi("__editingTenantId", "#tenant-form", "#tenant-title", "新增租客", "#tenant-submit", "添加租客", "#tenant-cancel", "#tenant-msg"); };
+
+window.editExpense = function (id) {
+  const e2 = state.rentalExpenses.find((x) => x.id === id);
+  if (!e2) return;
+  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (!fillForm("#exp-form", e2, ["property_id", "category", "description", "amount", "due_date", "paid_date", "vendor", "recurring"])) return;
+  window.__editingExpId = id;
+  editUi("#exp-form", "#exp-title", "编辑费用", "#exp-submit", "保存修改", "#exp-cancel", "#exp-msg");
+};
+window.cancelEditExpense = function () { cancelUi("__editingExpId", "#exp-form", "#exp-title", "新增费用", "#exp-submit", "添加费用", "#exp-cancel", "#exp-msg"); };
+window.delExpense = async function (id) {
+  if (!confirm("确认删除这笔费用？")) return;
+  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  const { error } = await sb.from("property_expenses").delete().eq("id", id);
+  if (error) alert("删除失败：" + error.message); else await refresh();
+};
+
+window.editRenoLine = function (id) {
+  const l = state.rentalReno.find((x) => x.id === id);
+  if (!l) return;
+  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (!fillForm("#reno-form", l, ["property_id", "kind", "item", "amount", "spent_date", "note"])) return;
+  window.__editingRenoId = id;
+  editUi("#reno-form", "#reno-title", "编辑翻新维修账", "#reno-submit", "保存修改", "#reno-cancel", "#reno-msg");
+};
+window.cancelEditRenoLine = function () { cancelUi("__editingRenoId", "#reno-form", "#reno-title", "翻新维修账（计入总投资额）", "#reno-submit", "添加一笔", "#reno-cancel", "#reno-msg"); };
 
 window.delRenoLine = async function (id) {
   if (!confirm("确认删除这笔翻新维修记录？")) return;
