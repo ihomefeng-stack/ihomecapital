@@ -720,38 +720,83 @@ window.delListing = async function (id) {
 
 function adminBindTab(body) {
   const invs = state.profiles.filter((p) => p.role === "investor");
-  body.innerHTML = `<div class="glass panel"><h3>绑定投资人到项目</h3>
-    <form id="bind-form"><div class="form-grid">
-      <label>投资人<select name="investor_id">${invs.map((p) => `<option value="${p.id}">${esc(p.display_name || p.email)}（${esc(p.email)}）</option>`).join("")}</select></label>
-      <label>项目<select name="project_id">${state.projects.map((p) => `<option value="${p.id}">${esc(p.title)}</option>`).join("")}</select></label>
-      <label>金额 USD<input name="amount" type="number" required></label>
-      <label>份额 %（可空，自动按金额/总成本算）<input name="share_pct" type="number" step="0.01"></label>
-      <label>状态<input name="status" value="已确认"></label>
-      <label>已分配 USD<input name="distributed" type="number" value="0"></label>
-      <label>备注<input name="note" placeholder="可空"></label>
+  const allInv = () => (DEMO_MODE ? DEMO.investments : state.myInvestments);
+  body.innerHTML = `<div class="glass panel"><h3>绑定投资人到项目（一套房可多人、一次保存）</h3>
+    ${invs.length ? "" : "<p>目前还没有「投资人」角色的账号。先到「账号角色」标签把对方账号提升为投资人，这里才会出现名单。</p>"}
+    <div class="form-grid">
+      <label>先选项目（房子）<select id="bind-project">${state.projects.map((p) => `<option value="${p.id}">${esc(p.title)}</option>`).join("")}</select></label>
     </div>
-    <button class="btn btn-pill" type="submit">保存绑定</button><p class="form-msg" id="bind-msg"></p></form>
+    <form id="bind-multi-form"><div id="bind-rows"></div>
+    <button class="btn btn-pill" type="submit">一次性保存全部勾选</button><p class="form-msg" id="bind-msg"></p></form>
     <h4>现有绑定</h4>
-    ${(DEMO_MODE ? DEMO.investments : state.myInvestments).map((i) => {
+    ${allInv().map((i) => {
       const p = state.projects.find((x) => x.id === i.project_id) || {};
       const prof = state.profiles.find((x) => x.id === i.investor_id);
       return `<div class="list-item">${esc(prof ? (prof.display_name || prof.email) : i.investor_id)} → ${esc(p.title || i.project_id)}：<strong>投资金额 ${money(i.amount)}</strong> · 份额 ${i.share_pct == null ? "自动" : pct(i.share_pct)} · ${esc(i.status || "")} · 已分配 ${money(i.distributed)}${i.note ? " · 备注：" + esc(i.note) : ""}
         <span class="row-actions"><button class="btn small danger" onclick="unbindInvestment('${i.id}')">解绑</button></span></div>`;
     }).join("") || "<p>暂无绑定。</p>"}
     </div>`;
-  $("#bind-form").addEventListener("submit", async (e) => {
+  const renderRows = () => {
+    const pid = $("#bind-project").value;
+    $("#bind-rows").innerHTML = invs.map((prof) => {
+      const ex = allInv().find((i) => i.project_id === pid && i.investor_id === prof.id);
+      return `<div class="list-item bind-row" data-inv="${prof.id}">
+        <label><input type="checkbox" class="b-on" ${ex ? "checked" : ""}> <strong>${esc(prof.display_name || prof.email)}</strong>（${esc(prof.email)}）</label>
+        <div class="form-grid">
+          <label>投资金额 USD<input class="b-amount" type="number" value="${ex ? ex.amount : ""}" placeholder="金额"></label>
+          <label>份额 %（可空，自动算）<input class="b-share" type="number" step="0.01" value="${ex && ex.share_pct != null ? ex.share_pct : ""}"></label>
+          <label>已分配 USD<input class="b-dist" type="number" value="${ex ? ex.distributed : 0}"></label>
+          <label>状态<input class="b-status" value="${esc(ex ? (ex.status || "已确认") : "已确认")}"></label>
+          <label>备注<input class="b-note" value="${esc(ex ? (ex.note || "") : "")}"></label>
+        </div></div>`;
+    }).join("") || "<p>暂无可选投资人。</p>";
+  };
+  $("#bind-project").addEventListener("change", renderRows);
+  renderRows();
+  $("#bind-multi-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const f = new FormData(e.target), msg = $("#bind-msg");
-    const row = { investor_id: f.get("investor_id"), project_id: f.get("project_id"),
-      amount: Number(f.get("amount")) || 0, share_pct: f.get("share_pct") === "" ? null : Number(f.get("share_pct")),
-      status: f.get("status") || "已确认", distributed: Number(f.get("distributed")) || 0,
-      note: (f.get("note") || "").trim() || null };
-    if (DEMO_MODE) { DEMO.investments.push(Object.assign({ id: "i" + Date.now() }, row)); msg.textContent = "演示模式：已添加（不保存）。"; msg.className = "form-msg ok"; await refresh(); return; }
-    const { error } = await sb.from("investments").upsert(row, { onConflict: "investor_id,project_id" });
-    msg.textContent = error ? error.message : "已保存。"; msg.className = error ? "form-msg err" : "form-msg ok";
-    if (!error) await refresh();
+    const pid = $("#bind-project").value, msg = $("#bind-msg");
+    const checked = [], toDelete = [];
+    $$(".bind-row", body).forEach((r) => {
+      const invId = r.dataset.inv;
+      const ex = allInv().find((i) => i.project_id === pid && i.investor_id === invId);
+      if (r.querySelector(".b-on").checked) {
+        checked.push({ invId, amount: r.querySelector(".b-amount").value, share: r.querySelector(".b-share").value,
+          dist: r.querySelector(".b-dist").value, status: r.querySelector(".b-status").value, note: r.querySelector(".b-note").value });
+      } else if (ex) toDelete.push(ex);
+    });
+    if (checked.some((c) => c.amount === "" || isNaN(Number(c.amount)))) {
+      msg.textContent = "有勾选的投资人还没填金额，补上再保存。"; msg.className = "form-msg err"; return;
+    }
+    if (DEMO_MODE) {
+      checked.forEach((c) => {
+        const row = { investor_id: c.invId, project_id: pid, amount: Number(c.amount),
+          share_pct: c.share === "" ? null : Number(c.share), status: c.status || "已确认",
+          distributed: Number(c.dist) || 0, note: c.note.trim() || null };
+        const ex = DEMO.investments.find((i) => i.project_id === pid && i.investor_id === c.invId);
+        if (ex) Object.assign(ex, row); else DEMO.investments.push(Object.assign({ id: "i" + Date.now() + Math.random() }, row));
+      });
+      toDelete.forEach((ex) => { const ix = DEMO.investments.indexOf(ex); if (ix >= 0) DEMO.investments.splice(ix, 1); });
+      msg.textContent = "演示模式：已更新（不保存）。"; msg.className = "form-msg ok"; await refresh(); return;
+    }
+    const errs = [];
+    for (const c of checked) {
+      const row = { investor_id: c.invId, project_id: pid, amount: Number(c.amount),
+        share_pct: c.share === "" ? null : Number(c.share), status: c.status || "已确认",
+        distributed: Number(c.dist) || 0, note: c.note.trim() || null };
+      const { error } = await sb.from("investments").upsert(row, { onConflict: "investor_id,project_id" });
+      if (error) errs.push(error.message);
+    }
+    for (const ex of toDelete) {
+      const { error } = await sb.from("investments").delete().eq("id", ex.id);
+      if (error) errs.push(error.message);
+    }
+    msg.textContent = errs.length ? "部分失败：" + errs[0] : `已保存：写入 ${checked.length} 人，解绑 ${toDelete.length} 人。`;
+    msg.className = errs.length ? "form-msg err" : "form-msg ok";
+    if (!errs.length) await refresh();
   });
 }
+
 window.unbindInvestment = async function (id) {
   if (!confirm("确认解绑这条投资？（删除投资人 × 项目的绑定记录）")) return;
   if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
