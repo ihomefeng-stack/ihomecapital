@@ -113,7 +113,7 @@ async function loadPublic() {
   }
   const [lst, prj, rt] = await Promise.all([
     sb.from("listings").select("*").eq("is_public", true).order("created_at", { ascending: false }),
-    sb.from("public_projects").select("*").order("created_at", { ascending: false }),
+    sb.from("public_projects").select("*").order("buy_date", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true }),
     sb.from("education_rates").select("*").order("rate_date", { ascending: false }).limit(1)
   ]);
   state.listings = lst.data || [];
@@ -209,6 +209,8 @@ function projectCard(p) {
   if (p.type === "lending") {
     extra = `<p>借款金额 ${money(p.loan_amount)} · 期限 ${p.loan_term_months ?? "—"} 个月 · ${esc(p.loan_status || p.status || "")}</p>
              <p>利率：<strong>${p.interest_rate == null ? "利率待定" : pct(p.interest_rate)}</strong></p>`;
+  } else if (p.buy_price != null || p.sell_price != null) {
+    extra = `<p>买入 ${money(p.buy_price)}${p.sell_price != null ? ` → 卖出 ${money(p.sell_price)}` : ""}</p>`;
   } else if (isInv && p.arv) {
     extra = `<p>ARV ${money(p.arv)} · 预计年化约 ${pct(p.teaser_annualized)}</p>`;
   } else {
