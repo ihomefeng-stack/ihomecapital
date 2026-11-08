@@ -728,13 +728,15 @@ function adminBindTab(body) {
       <label>份额 %（可空，自动按金额/总成本算）<input name="share_pct" type="number" step="0.01"></label>
       <label>状态<input name="status" value="已确认"></label>
       <label>已分配 USD<input name="distributed" type="number" value="0"></label>
+      <label>备注<input name="note" placeholder="可空"></label>
     </div>
     <button class="btn btn-pill" type="submit">保存绑定</button><p class="form-msg" id="bind-msg"></p></form>
     <h4>现有绑定</h4>
     ${(DEMO_MODE ? DEMO.investments : state.myInvestments).map((i) => {
       const p = state.projects.find((x) => x.id === i.project_id) || {};
       const prof = state.profiles.find((x) => x.id === i.investor_id);
-      return `<div class="list-item">${esc(prof ? (prof.display_name || prof.email) : i.investor_id)} → ${esc(p.title || i.project_id)}：${money(i.amount)} · ${esc(i.status || "")}</div>`;
+      return `<div class="list-item">${esc(prof ? (prof.display_name || prof.email) : i.investor_id)} → ${esc(p.title || i.project_id)}：<strong>投资金额 ${money(i.amount)}</strong> · 份额 ${i.share_pct == null ? "自动" : pct(i.share_pct)} · ${esc(i.status || "")} · 已分配 ${money(i.distributed)}${i.note ? " · 备注：" + esc(i.note) : ""}
+        <span class="row-actions"><button class="btn small danger" onclick="unbindInvestment('${i.id}')">解绑</button></span></div>`;
     }).join("") || "<p>暂无绑定。</p>"}
     </div>`;
   $("#bind-form").addEventListener("submit", async (e) => {
@@ -742,13 +744,21 @@ function adminBindTab(body) {
     const f = new FormData(e.target), msg = $("#bind-msg");
     const row = { investor_id: f.get("investor_id"), project_id: f.get("project_id"),
       amount: Number(f.get("amount")) || 0, share_pct: f.get("share_pct") === "" ? null : Number(f.get("share_pct")),
-      status: f.get("status") || "已确认", distributed: Number(f.get("distributed")) || 0 };
+      status: f.get("status") || "已确认", distributed: Number(f.get("distributed")) || 0,
+      note: (f.get("note") || "").trim() || null };
     if (DEMO_MODE) { DEMO.investments.push(Object.assign({ id: "i" + Date.now() }, row)); msg.textContent = "演示模式：已添加（不保存）。"; msg.className = "form-msg ok"; await refresh(); return; }
     const { error } = await sb.from("investments").upsert(row, { onConflict: "investor_id,project_id" });
     msg.textContent = error ? error.message : "已保存。"; msg.className = error ? "form-msg err" : "form-msg ok";
     if (!error) await refresh();
   });
 }
+window.unbindInvestment = async function (id) {
+  if (!confirm("确认解绑这条投资？（删除投资人 × 项目的绑定记录）")) return;
+  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  const { error } = await sb.from("investments").delete().eq("id", id);
+  if (error) { alert("解绑失败：" + error.message); return; }
+  await refresh();
+};
 
 function adminReviewTab(body) {
   body.innerHTML = `<div class="glass panel"><h3>代理房源审核</h3>
