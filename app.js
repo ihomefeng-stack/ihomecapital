@@ -209,8 +209,6 @@ function projectCard(p) {
   if (p.type === "lending") {
     extra = `<p>借款金额 ${money(p.loan_amount)} · 期限 ${p.loan_term_months ?? "—"} 个月 · ${esc(p.loan_status || p.status || "")}</p>
              <p>利率：<strong>${p.interest_rate == null ? "利率待定" : pct(p.interest_rate)}</strong></p>`;
-  } else if (p.annualized_pct != null) {
-    extra = `<p>年化回报 <strong>${pct(p.annualized_pct)}</strong>${p.hold_days ? ` · 持有 ${p.hold_days} 天` : ""}</p>`;
   } else if (isInv && p.arv) {
     extra = `<p>ARV ${money(p.arv)} · 预计年化约 ${pct(p.teaser_annualized)}</p>`;
   } else {
@@ -299,9 +297,7 @@ async function showDetail(projectId) {
     }
   } else if (p.type === "flip") {
     html += `<div class="lock">${state.role === "investor" ? "该项目完整损益表仅其投资人可见；你未参与此项目。" : "登录投资人账号可查看投资层数据；完整损益表仅该项目投资人与管理员可见。"}</div>`;
-    if (p.annualized_pct != null) {
-      html += `<div class="kv"><div><b>年化回报</b>${pct(p.annualized_pct)}</div>${p.hold_days ? `<div><b>持有天数</b>${p.hold_days} 天</div>` : ""}</div>`;
-    } else if (["investor", "admin"].includes(state.role) && p.arv) {
+    if (["investor", "admin"].includes(state.role) && p.arv) {
       html += `<div class="kv"><div><b>ARV</b>${money(p.arv)}</div><div><b>预计售价</b>${money(p.expected_sale_price)}</div><div><b>预计年化</b>约 ${pct(p.teaser_annualized)}</div></div>`;
     }
   }
