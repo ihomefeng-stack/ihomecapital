@@ -482,6 +482,9 @@ function adminProjectTab(body) {
         <label>照片 URL<input name="photo_url"></label>
         <label>Zillow 索引链接<input name="zillow_url"></label>
         <label>公开显示<select name="is_public"><option value="true">是</option><option value="false">否</option></select></label>
+        <label>买入价格（翻新，卡片显示）<input name="buy_price" type="number"></label>
+        <label>卖出价格（翻新，卡片显示）<input name="sell_price" type="number"></label>
+        <label>买入日期（翻新，列表按此排序）<input name="buy_date" type="date"></label>
         <label>ARV（翻新）<input name="arv" type="number"></label>
         <label>预计售价（翻新）<input name="expected_sale_price" type="number"></label>
         <label>预计持有天数（翻新）<input name="hold_days" type="number"></label>
@@ -540,7 +543,7 @@ async function adminFillProject(id) {
   if (!id) { addPnlRow({ section: "acquisition", item: "买入价 (Purchase Price)", amount: "", note: "", is_revenue: false }); return; }
   const p = state.projects.find((x) => x.id === id); if (!p) return;
   const set = (n, v) => { const el = form.elements[n]; if (el) el.value = v == null ? "" : v; };
-  ["id","type","title","status","address","city","zip","beds","baths","living_sqft","lot_sqft","year_built","photo_url","zillow_url","arv","expected_sale_price","hold_days","teaser_annualized","loan_amount","loan_term_months","loan_status","interest_rate","notes"].forEach((n) => set(n, p[n]));
+  ["id","type","title","status","address","city","zip","beds","baths","living_sqft","lot_sqft","year_built","photo_url","zillow_url","buy_price","sell_price","buy_date","arv","expected_sale_price","hold_days","teaser_annualized","loan_amount","loan_term_months","loan_status","interest_rate","notes"].forEach((n) => set(n, p[n]));
   set("is_public", String(p.is_public !== false));
   const lines = await loadPnl(id);
   lines.forEach((l) => addPnlRow(l));
@@ -560,6 +563,7 @@ async function onSaveProject(e) {
     beds: num("beds"), baths: num("baths"), living_sqft: num("living_sqft"), lot_sqft: num("lot_sqft"),
     year_built: num("year_built"), photo_url: f.get("photo_url") || null, zillow_url: f.get("zillow_url") || null,
     is_public: f.get("is_public") === "true", notes: f.get("notes") || null,
+    buy_price: num("buy_price"), sell_price: num("sell_price"), buy_date: f.get("buy_date") || null,
     arv: num("arv"), expected_sale_price: num("expected_sale_price"), hold_days: num("hold_days"),
     teaser_annualized: num("teaser_annualized"), loan_amount: num("loan_amount"),
     loan_term_months: num("loan_term_months"), loan_status: f.get("loan_status") || null,
