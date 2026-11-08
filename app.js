@@ -217,7 +217,7 @@ function projectCard(p) {
     extra = `<p>预计年化回报约 ${pct(p.teaser_annualized)}</p>`;
   }
   return `<div class="glass card">
-    <div class="ph"><span>${esc(p.city || "")} · ${p.type === "lending" ? "借款项目" : "翻新项目"}</span></div>
+    <div class="ph"${p.photo_url ? ` style="background-image:url('${esc(p.photo_url)}');background-size:cover;background-position:center"` : ""}><span>${esc(p.city || "")} · ${p.type === "lending" ? "借款项目" : "翻新项目"}</span></div>
     <div class="body">
       <h3>${esc(p.title)}</h3>
       <p>${p.address ? esc(p.address) + ", " : ""}${esc(p.city || "")}</p>
@@ -278,7 +278,7 @@ async function showDetail(projectId) {
     const lines = await loadPnl(projectId);
     const t = pnlTotals(lines);
     const ann = annualized(t.profit, t.totalCosts, p.hold_days);
-    html += renderPnlTable(lines, t);
+    html += renderPnlTable(lines, t, projectId);
     html += `<div class="kv">
       <div><b>总成本</b>${money(t.totalCosts)}</div>
       <div><b>利润</b>${t.profit == null ? "—（未出售）" : money(t.profit)}</div>
@@ -317,19 +317,37 @@ async function showDetail(projectId) {
 
   html += `<div class="row-actions"><button class="btn small btn-ghost" onclick="document.getElementById('project-detail').innerHTML=''">收起</button></div></div>`;
   wrap.innerHTML = html;
+  $$(".pnl-edit", wrap).forEach((el) => el.addEventListener("click", () => editPnlAmount(el)));
   $("#detail-top").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function editPnlAmount(el) {
+  if (state.role !== "admin" || DEMO_MODE) return;
+  const lineId = el.dataset.id, pid = el.dataset.pid;
+  const lines = state.pnlCache[pid] || [];
+  const line = lines.find((l) => l.id === lineId);
+  if (!line) return;
+  const v = prompt(`修改「${line.item}」的金额 (USD)：`, line.amount);
+  if (v == null) return;
+  const amt = Number(v);
+  if (isNaN(amt)) { alert("请输入数字。"); return; }
+  const { error } = await sb.from("pnl_lines").update({ amount: amt }).eq("id", lineId);
+  if (error) { alert("保存失败：" + error.message); return; }
+  line.amount = amt;
+  showDetail(pid);
 }
 window.showDetail = showDetail;
 
-function renderPnlTable(lines, t) {
+function renderPnlTable(lines, t, pid) {
   let html = `<div class="sec-title">翻新屋损益表 Property P&amp;L</div>`;
   ["acquisition", "holding", "renovation", "sale"].forEach((sec) => {
     const rows = (lines || []).filter((l) => l.section === sec);
     if (!rows.length) return;
     html += `<div class="sec-title">${SECTION_NAMES[sec]}</div><table class="pnl">
       <tr><th>项目</th><th class="num">金额 (USD)</th><th>备注</th></tr>`;
+    const canEdit = pid && state.role === "admin";
     rows.forEach((l) => {
-      html += `<tr><td>${esc(l.item)}</td><td class="num">${money(l.amount)}</td><td>${esc(l.note || "")}</td></tr>`;
+      html += `<tr><td>${esc(l.item)}</td><td class="num">${canEdit ? `<span class="pnl-edit" data-pid="${pid}" data-id="${l.id}" title="点击修改金额">${money(l.amount)}</span>` : money(l.amount)}</td><td>${esc(l.note || "")}</td></tr>`;
     });
     if (sec === "sale") {
       html += `<tr class="subtotal"><td>卖出价格</td><td class="num">${money(t.revenue)}</td><td></td></tr>
