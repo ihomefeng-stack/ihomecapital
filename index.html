@@ -3,8 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>房屋投资 · Property Investments</title>
+<title>iHome Capital · 南加州翻新住宅投资</title>
 <meta name="description" content="iHome Capital — 南加州翻新住宅投资：合伙翻新与短期借款项目，投资人可随时查看自己资金所在项目与状态。">
+<meta property="og:title" content="iHome Capital · 南加州翻新住宅投资">
+<meta property="og:description" content="南加州住宅翻新、出售与长期出租项目记录。Universal Elite Inc · CA DRE #02039413">
+<meta property="og:url" content="https://ihomecapital.com/">
+<meta property="og:type" content="website">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f5f2">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101014">
 <link rel="manifest" href="manifest.webmanifest">
@@ -24,9 +28,10 @@
 
 <header class="nav glass">
   <div class="nav-inner">
-    <a class="brand" href="#home">房屋投资 <span>· Property Investments</span></a>
+    <a class="brand" href="#home">iHome Capital <span>· 房屋投资</span></a>
     <nav class="nav-links">
-      <a href="#home">首页</a>
+      <a href="#admin" id="nav-admin" class="nav-admin hidden">管理后台</a>
+      <a href="#projects" id="nav-mine" class="hidden">我的投资</a>
       <a href="#listings">在售房源</a>
       <a href="#projects">投资项目</a>
       <a href="#rentals">出租物业</a>
@@ -58,11 +63,18 @@
   <!-- 首页 -->
   <section id="home" class="hero">
     <h1>南加州翻新住宅投资</h1>
-    <p class="hero-sub">这里是在售房源和我们正在做的翻新与出租项目，点开任意一个就能看项目详情。</p>
+    <p class="hero-sub">我们在南加州买入、翻新、出售和出租住宅。下面是真实的项目记录：已完成的、正在做的，以及长期出租的物业。</p>
     <div class="hero-cta">
       <a class="btn btn-pill" href="#projects">看投资项目</a>
-      <a class="btn btn-ghost" href="#education">先学基础知识</a>
+      <a class="btn btn-ghost" href="#contact">联系我们</a>
     </div>
+    <div id="hero-stats" class="hero-cards"></div>
+  </section>
+
+  <!-- 管理员后台（登录为管理员后显示在最前面，不用滚到底） -->
+  <section id="admin" class="section hidden">
+    <h2>管理员后台</h2>
+    <div id="admin-area"></div>
   </section>
 
   <!-- 在售房源 -->
@@ -74,16 +86,17 @@
   <!-- 投资项目 -->
   <section id="projects" class="section">
     <h2>投资项目</h2>
-    <p class="section-sub">合伙翻新项目与借款项目并列展示。访客只看公开信息；投资人登录后可看投资层数据，自己参与的项目可看本人持仓明细；完整损益表仅管理员与该项目投资人可见。</p>
+    <p class="section-sub">合伙翻新项目与借款项目。点项目卡片看详情；参与项目的投资人登录后可看自己的持仓与完整损益表。</p>
     <div id="my-money" class="glass panel hidden"></div>
+    <div id="project-filters" class="tabs" role="tablist"></div>
     <div id="project-grid" class="grid"></div>
-    <div id="project-detail" class="detail-wrap"></div>
+    <div class="more-wrap"><button id="project-more" class="btn hidden" type="button">显示更多</button></div>
   </section>
 
   <!-- 出租物业 -->
   <section id="rentals" class="section">
     <h2>出租物业</h2>
-    <p class="section-sub">长期出租物业组合。访客只看概要与年回报；投资人登录后可看自己参与物业的部分明细（租金、费用、收租汇总，不含租客个人信息）；完整明细（含租客联系方式）仅管理员可见。</p>
+    <p class="section-sub">长期出租物业组合与年回报。参与的投资人登录后可看自己物业的租金、费用和收租汇总（不含租客个人信息）。</p>
     <div id="rental-grid" class="grid"></div>
     <div id="rental-investor"></div>
   </section>
@@ -100,11 +113,6 @@
       <div class="glass card"><h3>基础课 2：买入纪律</h3><p>最高可接受出价 MAO = ARV × 80%，不再另扣装修费。要价高于 MAO 的项目直接放弃，不追价。</p></div>
       <div class="glass card"><h3>基础课 3：回报怎么算</h3><p>利润率 = 利润 ÷ 总成本；年化回报 = 利润 ÷ 总投入（总成本）÷（持有天数 ÷ 365）。看回报永远用投入口径，不用售价口径。</p></div>
     </div>
-    <div class="glass panel subscribe">
-      <h3>订阅投资热点</h3>
-      <p>利率与市场方向更新时通知你（功能即将上线）。</p>
-      <form id="subscribe-form"><input type="email" placeholder="你的邮箱" disabled><button class="btn btn-pill" disabled>即将上线</button></form>
-    </div>
   </section>
 
   <!-- 代理合作 -->
@@ -114,37 +122,51 @@
     <div id="agent-area"></div>
   </section>
 
-  <!-- 管理员后台 -->
-  <section id="admin" class="section hidden">
-    <h2>管理员后台</h2>
-    <div id="admin-area"></div>
-  </section>
-
   <!-- 联系 -->
   <section id="contact" class="section">
     <h2>联系</h2>
-    <div class="glass panel">
-      <p><strong>Universal Elite Inc</strong></p>
-      <p>CA DRE #02039413</p>
-      <p>电话：(626) 510-0292</p>
+    <div class="glass panel contact-panel">
+      <div>
+        <p><strong>Universal Elite Inc</strong> · CA DRE #02039413</p>
+        <p>想了解投资项目、出售房子给我们，或成为合作代理，欢迎直接打电话或发短信。</p>
+      </div>
+      <div class="row-actions">
+        <a class="btn btn-pill" href="tel:+16265100292">📞 (626) 510-0292</a>
+        <a class="btn" href="sms:+16265100292">发短信</a>
+      </div>
     </div>
   </section>
 </main>
 
 <footer class="footer">
-  <span>房屋投资 · Property Investments</span>
-  <span>Universal Elite Inc · CA DRE #02039413 · (626) 510-0292</span>
+  <span>iHome Capital · Universal Elite Inc · CA DRE #02039413 · <a href="tel:+16265100292">(626) 510-0292</a></span>
+  <span class="disclaimer">本网站内容仅供参考，不构成任何证券的出售要约或购买邀约。所示回报为历史或预计数据，不代表未来结果；房地产投资有风险，可能损失本金。</span>
 </footer>
+
+<!-- 项目详情弹窗（手机上从底部弹出） -->
+<div id="detail-modal" class="modal hidden" aria-modal="true" role="dialog">
+  <div class="glass modal-card modal-wide">
+    <button class="modal-close" id="detail-close" aria-label="关闭">×</button>
+    <div id="project-detail"></div>
+  </div>
+</div>
+
+<!-- 操作提示 -->
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <!-- 登录/注册弹窗 -->
 <div id="auth-modal" class="modal hidden">
   <div class="glass modal-card">
-    <button class="modal-close" id="auth-close">×</button>
+    <button class="modal-close" id="auth-close" aria-label="关闭">×</button>
     <h3 id="auth-title">登录</h3>
+    <p class="auth-hint" id="auth-hint">投资人、合作代理用邮箱登录，查看自己的项目与房源。</p>
     <form id="auth-form">
-      <label>邮箱<input type="email" id="auth-email" required autocomplete="email"></label>
-      <label>密码<input type="password" id="auth-password" required autocomplete="current-password"></label>
-      <label id="auth-name-wrap" class="hidden">姓名<input type="text" id="auth-name" autocomplete="name"></label>
+      <label id="auth-name-wrap" class="hidden">姓名<input type="text" id="auth-name" autocomplete="name" placeholder="方便我们认出你"></label>
+      <label>邮箱<input type="email" id="auth-email" required autocomplete="email" inputmode="email"></label>
+      <label>密码
+        <span class="pw-wrap"><input type="password" id="auth-password" required autocomplete="current-password" minlength="6">
+        <button type="button" class="pw-toggle" id="auth-pw-toggle" aria-label="显示密码">显示</button></span>
+      </label>
       <button class="btn btn-pill" type="submit" id="auth-submit">登录</button>
       <p class="auth-switch"><a href="#" id="auth-toggle">没有账号？注册</a> · <a href="#" id="auth-forgot">忘记密码？</a></p>
       <p class="form-msg" id="auth-msg"></p>
@@ -156,7 +178,7 @@
 <!-- 设置新密码弹窗（密码重置邮件链接落地时打开） -->
 <div id="reset-modal" class="modal hidden">
   <div class="glass modal-card">
-    <button class="modal-close" id="reset-close">×</button>
+    <button class="modal-close" id="reset-close" aria-label="关闭">×</button>
     <h3>设置新密码</h3>
     <form id="reset-form">
       <label>新密码<input type="password" id="reset-password" required autocomplete="new-password"></label>

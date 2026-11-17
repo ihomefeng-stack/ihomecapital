@@ -67,6 +67,76 @@ const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&":
 const money = (n) => (n == null || n === "" || isNaN(n)) ? "—" : "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
 const pct = (n) => (n == null || isNaN(n)) ? "—" : Number(n).toFixed(1) + "%";
 const SECTION_NAMES = { acquisition: "买入 Acquisition", holding: "持有费用 Holding", renovation: "装修费用 Renovation", sale: "卖出 Sale & Selling Costs" };
+const ROLE_NAMES = { visitor: "访客", investor: "投资人", agent: "合作代理", admin: "管理员" };
+const roleName = (r) => ROLE_NAMES[r] || r;
+
+/* Supabase 英文报错 → 中文（看不懂的保留原文） */
+function errZh(err) {
+  const m = String((err && err.message) || err || "");
+  const map = [
+    [/invalid login credentials/i, "邮箱或密码不对。忘记密码可以点「忘记密码？」重设。"],
+    [/email not confirmed/i, "邮箱还没确认：请先去邮箱点确认链接，再回来登录。"],
+    [/user already registered|already been registered/i, "这个邮箱已经注册过了，请直接登录；忘记密码可以点「忘记密码？」。"],
+    [/password should be at least (\d+)/i, (x) => `密码至少需要 ${x[1]} 位。`],
+    [/(weak|pwned|leaked|compromised).*password|password.*(weak|pwned|leaked)/i, "这个密码太常见或已在网上泄露过，请换一个更难猜的密码。"],
+    [/rate limit|too many requests|security purposes.*after/i, "操作太频繁，请稍等一分钟再试。"],
+    [/unable to validate email|invalid email|email address.*invalid/i, "邮箱格式不对，请检查一下。"],
+    [/signups? not allowed|signup is disabled/i, "目前不开放自助注册，请电话联系我们开通账号。"],
+    [/same.*(old|previous) password|different from the old/i, "新密码不能和旧密码一样。"],
+    [/failed to fetch|network/i, "网络连接失败，请检查网络后重试。"],
+    [/jwt expired|session.*(expired|missing)|not authenticated/i, "登录已过期，请重新登录。"],
+    [/row-level security|permission denied|only admins/i, "没有权限做这个操作。"],
+    [/duplicate key/i, "这条记录已经存在了。"],
+    [/violates foreign key/i, "这条记录还被其他数据引用，不能直接删除/修改。"]
+  ];
+  for (const [re, zh] of map) { const x = m.match(re); if (x) return typeof zh === "function" ? zh(x) : zh; }
+  return m || "出错了，请重试。";
+}
+
+/* 轻提示：替代 toast()，不打断操作 */
+let toastTimer = null;
+function toast(msg, isErr) {
+  const el = document.getElementById("toast"); if (!el) return;
+  const text = String(msg == null ? "" : msg);
+  el.textContent = text;
+  el.className = "toast" + ((isErr || /失败|无效|错误|出错|不能|没有权限/.test(text)) ? " err" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add("hidden"), Math.min(8000, 2500 + text.length * 60));
+}
+
+/* 按钮在请求期间禁用，防止重复提交 */
+async function withBusy(btn, label, fn) {
+  if (!btn) return fn();
+  if (btn.disabled) return;
+  const old = btn.textContent;
+  btn.disabled = true; btn.classList.add("loading"); if (label) btn.textContent = label;
+  try { return await fn(); }
+  finally {
+    btn.disabled = false; btn.classList.remove("loading");
+    if (!label || btn.textContent === label) btn.textContent = old; // 回调里改过文字就不覆盖
+  }
+}
+
+/* 弹窗：Esc / 点背景关闭，打开时锁定页面滚动 */
+function openModal(id) {
+  const m = document.getElementById(id); if (!m) return;
+  m.classList.remove("hidden"); document.body.classList.add("modal-open");
+  const f = m.querySelector("input:not([type=hidden]):not(.hidden input), button.modal-close");
+  if (f && window.matchMedia("(min-width: 641px)").matches) setTimeout(() => f.focus(), 30);
+}
+function closeModal(id) {
+  const m = document.getElementById(id); if (!m) return;
+  m.classList.add("hidden");
+  if (!$$(".modal").some((x) => !x.classList.contains("hidden"))) document.body.classList.remove("modal-open");
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const open = $$(".modal").filter((x) => !x.classList.contains("hidden")).pop();
+  if (open) closeModal(open.id);
+});
+document.addEventListener("click", (e) => {
+  if (e.target.classList && e.target.classList.contains("modal")) closeModal(e.target.id);
+});
 
 /* P&L math — single source of truth.
    lines: [{section,item,amount,note,is_revenue}]
@@ -190,7 +260,7 @@ function renderRates() {
 function renderListings() {
   $("#listing-grid").innerHTML = state.listings.map((l) => `
     <div class="glass card">
-      <div class="ph"><span>${esc(l.city || "")} · 在售房源</span></div>
+      <div class="ph${l.photo_url ? ` photo" style="background-image:url('${esc(l.photo_url)}')` : ""}"><span>${esc(l.city || "")} · 在售房源</span></div>
       <div class="body">
         <h3>${esc(l.title)}</h3>
         <div class="price">${money(l.price)}</div>
@@ -216,22 +286,87 @@ function projectCard(p) {
   } else {
     extra = `<p>预计年化回报约 ${pct(p.teaser_annualized)}</p>`;
   }
-  return `<div class="glass card">
-    <div class="ph"${p.photo_url ? ` style="background-image:url('${esc(p.photo_url)}');background-size:cover;background-position:center"` : ""}><span>${esc(p.city || "")} · ${p.type === "lending" ? "借款项目" : "翻新项目"}</span></div>
+  const done = projectGroup(p) === "sold";
+  const photo = p.photo_url ? ` photo" style="background-image:url('${esc(p.photo_url)}')` : "";
+  return `<div class="glass card clickable" tabindex="0" role="button" data-pid="${esc(p.id)}" aria-label="查看 ${esc(p.title)} 详情">
+    <div class="ph${photo}"><span>${esc(p.city || "")} · ${p.type === "lending" ? "借款项目" : "翻新项目"}</span></div>
     <div class="body">
       <h3>${esc(p.title)}</h3>
-      <p>${p.address ? esc(p.address) + ", " : ""}${esc(p.city || "")}</p>
+      <p>${p.address && p.address !== p.title ? esc(p.address) + ", " : ""}${esc(p.city || "")}</p>
       <p>${p.beds ? p.beds + " 卧 · " : ""}${p.baths ? p.baths + " 卫 · " : ""}${p.living_sqft ? Number(p.living_sqft).toLocaleString() + " sqft" : ""}</p>
       ${extra}
-      <p><span class="tag hot">${esc(p.status || "")}</span>
+      <p><span class="tag ${done ? "muted" : "hot"}">${done ? "" : '<span class="status-dot"></span>'}${esc(p.status || "")}</span>
       ${mine ? '<span class="tag">我已参与</span>' : ""}
-      ${p.zillow_url ? `<a href="${esc(p.zillow_url)}" target="_blank" rel="noopener">Zillow 索引 ↗</a>` : ""}</p>
-      <div class="row-actions"><button class="btn small" onclick="showDetail('${p.id}')">查看详情</button></div>
-      ${!mine && state.role === "investor" ? '<div class="lock">项目明细仅该项目投资人可见</div>' : ""}
+      ${p.zillow_url ? `<a href="${esc(p.zillow_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Zillow ↗</a>` : ""}</p>
+      ${!mine && state.role === "investor" && p.type === "flip" ? '<div class="lock">完整损益表仅该项目投资人可见</div>' : ""}
     </div></div>`;
 }
 
-function renderProjects() { $("#project-grid").innerHTML = state.projects.map(projectCard).join("") || "<p>暂无项目。</p>"; }
+/* 项目分组：进行中（含出售中/Escrow/装修/募集）、已售出、已取消 */
+function projectGroup(p) {
+  const s = String(p.status || "");
+  if (/已售|售出|sold|完成|已结束|已还款/i.test(s)) return "sold";
+  if (/取消|cancel/i.test(s)) return "cancelled";
+  return "active";
+}
+const PROJECT_PAGE = 9;
+const projView = { filter: null, shown: PROJECT_PAGE };
+
+function sortedProjects() {
+  const rank = { active: 0, sold: 1, cancelled: 2 };
+  const d = (p) => String(p.buy_date || p.created_at || "");
+  return state.projects.slice().sort((a, b) => {
+    const mineA = state.myInvestments.some((i) => i.project_id === a.id) ? 0 : 1;
+    const mineB = state.myInvestments.some((i) => i.project_id === b.id) ? 0 : 1;
+    return (mineA - mineB) || (rank[projectGroup(a)] - rank[projectGroup(b)]) || d(b).localeCompare(d(a));
+  });
+}
+
+function renderProjects() {
+  const all = sortedProjects();
+  const counts = { active: 0, sold: 0, cancelled: 0, lending: 0, mine: 0 };
+  all.forEach((p) => {
+    counts[projectGroup(p)]++;
+    if (p.type === "lending") counts.lending++;
+    if (state.myInvestments.some((i) => i.project_id === p.id)) counts.mine++;
+  });
+  const filters = [
+    ["mine", "我参与的", counts.mine], ["active", "进行中", counts.active], ["sold", "已完成", counts.sold],
+    ["lending", "借款项目", counts.lending], ["all", "全部", all.length]
+  ].filter(([k, , n]) => n > 0 || k === "all");
+  if (projView.role !== state.role) { projView.role = state.role; projView.filter = null; projView.shown = PROJECT_PAGE; }
+  if (!projView.filter || !filters.some(([k]) => k === projView.filter)) {
+    projView.filter = state.role === "investor" && counts.mine ? "mine" : counts.active ? "active" : "all";
+  }
+  $("#project-filters").innerHTML = filters.map(([k, label, n]) =>
+    `<button type="button" data-f="${k}" class="${projView.filter === k ? "on" : ""}" role="tab">${label}<span class="cnt">${n}</span></button>`).join("");
+  $$("#project-filters button").forEach((b) => b.addEventListener("click", () => {
+    projView.filter = b.dataset.f; projView.shown = PROJECT_PAGE; renderProjects();
+  }));
+  const f = projView.filter;
+  const list = all.filter((p) => f === "all" ? true
+    : f === "mine" ? state.myInvestments.some((i) => i.project_id === p.id)
+    : f === "lending" ? p.type === "lending"
+    : projectGroup(p) === f);
+  $("#project-grid").innerHTML = list.slice(0, projView.shown).map(projectCard).join("") || "<p>暂无项目。</p>";
+  const more = $("#project-more");
+  const left = list.length - projView.shown;
+  more.classList.toggle("hidden", left <= 0);
+  more.textContent = `显示更多（还有 ${left} 个）`;
+}
+
+function renderHeroStats() {
+  const el = $("#hero-stats"); if (!el) return;
+  const sold = state.projects.filter((p) => projectGroup(p) === "sold");
+  const active = state.projects.filter((p) => projectGroup(p) === "active");
+  const units = state.rentalsPublic.reduce((s, r) => s + Number(r.unit_count || 0), 0);
+  const stats = [
+    [sold.length, "个翻新项目已完成出售"],
+    [active.length, "个项目进行中"],
+    [units, "户长期出租物业"]
+  ].filter(([n]) => n > 0);
+  el.innerHTML = stats.map(([n, l]) => `<div class="glass stat"><div class="stat-num">${n}</div><div class="stat-label">${l}</div></div>`).join("");
+}
 
 function renderMyMoney() {
   const box = $("#my-money");
@@ -253,7 +388,9 @@ async function showDetail(projectId) {
   const isAdmin = state.role === "admin";
   const myInv = state.myInvestments.find((i) => i.project_id === projectId && (DEMO_MODE ? state.role === "investor" : i.investor_id === (state.user && state.user.id)));
   const canPnl = isAdmin || !!myInv;
-  let html = `<div class="glass detail" id="detail-top">
+  wrap.innerHTML = `<p class="form-msg">加载中…</p>`;
+  let html = `<div class="detail" id="detail-top">
+    ${p.photo_url ? `<img class="card-photo" src="${esc(p.photo_url)}" alt="">` : ""}
     <h3>${esc(p.title)}</h3>
     <p>${p.address ? esc(p.address) + ", " : ""}${esc(p.city || "")}${p.zip ? " " + esc(p.zip) : ""} · <span class="tag hot">${esc(p.status || "")}</span>
     ${p.zillow_url ? ` · <a href="${esc(p.zillow_url)}" target="_blank" rel="noopener">Zillow 索引 ↗</a>` : ""}</p>
@@ -315,11 +452,16 @@ async function showDetail(projectId) {
       </div>`;
   }
 
-  html += `<div class="row-actions"><button class="btn small btn-ghost" onclick="document.getElementById('project-detail').innerHTML=''">收起</button></div></div>`;
+  if (state.role === "visitor") {
+    html += `<div class="lock">想了解参与方式？<a href="#contact" onclick="closeModal('detail-modal')">联系我们</a>，或 <a href="#" onclick="event.preventDefault();closeModal('detail-modal');openAuth()">登录投资人账号</a>。</div>`;
+  }
+  html += `</div>`;
   wrap.innerHTML = html;
   $$(".pnl-edit", wrap).forEach((el) => el.addEventListener("click", () => editPnlAmount(el)));
-  $("#detail-top").scrollIntoView({ behavior: "smooth", block: "start" });
+  openModal("detail-modal");
+  const card = wrap.closest(".modal-card"); if (card) card.scrollTop = 0;
 }
+window.closeModal = closeModal;
 
 async function editPnlAmount(el) {
   if (state.role !== "admin" || DEMO_MODE) return;
@@ -330,9 +472,9 @@ async function editPnlAmount(el) {
   const v = prompt(`修改「${line.item}」的金额 (USD)：`, line.amount);
   if (v == null) return;
   const amt = Number(v);
-  if (isNaN(amt)) { alert("请输入数字。"); return; }
+  if (isNaN(amt)) { toast("请输入数字。"); return; }
   const { error } = await sb.from("pnl_lines").update({ amount: amt }).eq("id", lineId);
-  if (error) { alert("保存失败：" + error.message); return; }
+  if (error) { toast("保存失败：" + errZh(error)); return; }
   line.amount = amt;
   showDetail(pid);
 }
@@ -396,7 +538,7 @@ function renderAgent() {
     return;
   }
   if (state.role !== "agent" && state.role !== "admin") {
-    el.innerHTML = `<div class="glass panel"><p>你的账号身份是「${esc(state.role)}」。代理提交入口仅对代理账号开放。</p></div>`;
+    el.innerHTML = `<div class="glass panel"><p>你的账号身份是「${esc(roleName(state.role))}」。代理提交入口仅对合作代理账号开放；想成为合作代理请联系我们开通。</p></div>`;
     return;
   }
   const mine = state.submissions;
@@ -438,7 +580,7 @@ async function onSubmitListing(e) {
   }
   row.agent_id = state.user.id;
   const { error } = await sb.from("agent_submissions").insert(row);
-  if (error) { msg.textContent = "提交失败：" + error.message; msg.className = "form-msg err"; return; }
+  if (error) { msg.textContent = "提交失败：" + errZh(error); msg.className = "form-msg err"; return; }
   msg.textContent = "已提交，等待管理员审核。"; msg.className = "form-msg ok";
   await loadAgentData(); renderAgent();
 }
@@ -460,16 +602,30 @@ function renderAdmin() {
   </div>
   <div id="admin-tab-body"></div>`;
   $$("#admin-area .tabs button").forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.tab === state.adminTab) return;
+    if (adminFormDirty() && !confirm("当前表单有没保存的修改，确定切换？")) return;
+    state.adminTab = b.dataset.tab;
     $$("#admin-area .tabs button").forEach((x) => x.classList.remove("on"));
     b.classList.add("on"); renderAdminTab(b.dataset.tab);
   }));
   const pending = state.submissions.filter((s) => s.status === "pending").length;
   const rc = $("#review-count"); if (rc && pending) rc.textContent = "(" + pending + ")";
-  renderAdminTab("project");
+  // 保存后停留在原来的标签，不再跳回「项目管理」
+  const tab = state.adminTab || "project";
+  $$("#admin-area .tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === tab));
+  renderAdminTab(tab);
 }
+
+/* 后台表单是否有未保存的输入（切标签/离开前提醒） */
+let adminDirty = false;
+document.addEventListener("input", (e) => { if (e.target.closest && e.target.closest("#admin-area form")) adminDirty = true; });
+document.addEventListener("submit", (e) => { if (e.target.closest && e.target.closest("#admin-area")) adminDirty = false; }, true);
+function adminFormDirty() { return adminDirty; }
+window.addEventListener("beforeunload", (e) => { if (adminDirty && state.role === "admin") { e.preventDefault(); e.returnValue = ""; } });
 
 function renderAdminTab(tab) {
   const body = $("#admin-tab-body"); if (!body) return;
+  adminDirty = false;
   if (tab === "project") return adminProjectTab(body);
   if (tab === "bind") return adminBindTab(body);
   if (tab === "review") return adminReviewTab(body);
@@ -479,9 +635,11 @@ function renderAdminTab(tab) {
 }
 
 function adminProjectTab(body) {
-  const opts = state.projects.map((p) => `<option value="${p.id}">${esc(p.title)}（${p.type === "lending" ? "借款" : "翻新"}）</option>`).join("");
+  const projOpt = (p) => `<option value="${p.id}">${esc(p.title)}（${p.type === "lending" ? "借款" : "翻新"} · ${esc(p.status || "")}${p.is_public === false ? " · 未公开" : ""}）</option>`;
+  const opts = sortedProjects().map(projOpt).join("");
   body.innerHTML = `<div class="glass panel">
     <h3>新增 / 编辑项目</h3>
+    <label>搜索项目（地址 / 城市 / 状态）<input id="ap-search" type="search" placeholder="输入关键字筛选下面的列表"></label>
     <label>选择已有项目编辑（或留空新增）<select id="ap-pick"><option value="">＋ 新增项目</option>${opts}</select></label>
     <form id="ap-form">
       <input type="hidden" name="id">
@@ -523,7 +681,18 @@ function adminProjectTab(body) {
       <p class="form-msg" id="ap-msg"></p>
     </form></div>`;
   $("#pnl-add").addEventListener("click", () => addPnlRow());
-  $("#ap-pick").addEventListener("change", (e) => adminFillProject(e.target.value));
+  $("#ap-search").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    const pick = $("#ap-pick"), cur = pick.value;
+    const hit = sortedProjects().filter((p) => !q || [p.title, p.address, p.city, p.status, p.zip].some((v) => String(v || "").toLowerCase().includes(q)));
+    pick.innerHTML = `<option value="">＋ 新增项目</option>` + hit.map(projOpt).join("");
+    if (hit.some((p) => p.id === cur)) pick.value = cur;
+    else if (q && hit.length === 1) { pick.value = hit[0].id; adminFillProject(hit[0].id); }
+  });
+  $("#ap-pick").addEventListener("change", (e) => {
+    if (adminDirty && !confirm("当前表单有没保存的修改，确定换一个项目？")) return;
+    adminFillProject(e.target.value); adminDirty = false;
+  });
   $("#ap-form").addEventListener("submit", onSaveProject);
   $("#ap-delete").addEventListener("click", onDeleteProject);
   addPnlRow({ section: "acquisition", item: "买入价 (Purchase Price)", amount: "", note: "", is_revenue: false });
@@ -568,13 +737,24 @@ async function adminFillProject(id) {
   if (!lines.length) addPnlRow();
 }
 window.adminEditProject = function (id) {
+  closeModal("detail-modal");
+  if (state.adminTab !== "project") {
+    state.adminTab = "project";
+    $$("#admin-area .tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === "project"));
+    renderAdminTab("project");
+  }
   document.getElementById("admin").scrollIntoView({ behavior: "smooth" });
   const pick = $("#ap-pick"); if (pick) { pick.value = id; adminFillProject(id); }
 };
 
 async function onSaveProject(e) {
   e.preventDefault();
+  const btn = e.target.querySelector('button[type="submit"]');
+  return withBusy(btn, "保存中…", () => saveProject(e));
+}
+async function saveProject(e) {
   const form = e.target, f = new FormData(form), msg = $("#ap-msg");
+  msg.className = "form-msg"; msg.textContent = "";
   const num = (n) => { const v = f.get(n); return v === "" || v == null ? null : Number(v); };
   const row = { type: f.get("type"), title: f.get("title"), status: f.get("status") || "进行中",
     address: f.get("address") || null, city: f.get("city") || null, zip: f.get("zip") || null,
@@ -596,16 +776,25 @@ async function onSaveProject(e) {
     await refresh(); return;
   }
   let pid = id;
-  if (id) { const { error } = await sb.from("projects").update(row).eq("id", id); if (error) { msg.textContent = error.message; msg.className = "form-msg err"; return; } }
-  else { const { data, error } = await sb.from("projects").insert(row).select("id").single(); if (error) { msg.textContent = error.message; msg.className = "form-msg err"; return; } pid = data.id; }
-  await sb.from("pnl_lines").delete().eq("project_id", pid);
+  if (id) { const { error } = await sb.from("projects").update(row).eq("id", id); if (error) { msg.textContent = errZh(error); msg.className = "form-msg err"; return; } }
+  else { const { data, error } = await sb.from("projects").insert(row).select("id").single(); if (error) { msg.textContent = errZh(error); msg.className = "form-msg err"; return; } pid = data.id; }
+  // 先写入新行，成功后再删旧行；写入失败时旧数据仍在，不会丢账
+  const old = await sb.from("pnl_lines").select("id").eq("project_id", pid);
+  const oldIds = (old.data || []).map((r) => r.id);
   if (lines.length) {
     const { error } = await sb.from("pnl_lines").insert(lines.map((l) => Object.assign({ project_id: pid }, l)));
-    if (error) { msg.textContent = "项目已保存，但损益表行保存失败：" + error.message; msg.className = "form-msg err"; return; }
+    if (error) { msg.textContent = "项目已保存，但损益表保存失败（原损益表未改动）：" + errZh(error); msg.className = "form-msg err"; return; }
+  }
+  if (oldIds.length) {
+    const { error } = await sb.from("pnl_lines").delete().in("id", oldIds);
+    if (error) { msg.textContent = "新损益表已保存，但旧行清理失败，请刷新检查是否有重复行：" + errZh(error); msg.className = "form-msg err"; }
   }
   delete state.pnlCache[pid];
-  msg.textContent = "已保存。"; msg.className = "form-msg ok";
+  if (!msg.classList.contains("err")) { msg.textContent = "已保存。"; msg.className = "form-msg ok"; }
+  toast("项目「" + row.title + "」已保存");
+  adminDirty = false;
   await refresh();
+  const pick = $("#ap-pick"); if (pick) { pick.value = pid; adminFillProject(pid); }
 }
 
 async function onDeleteProject() {
@@ -615,7 +804,7 @@ async function onDeleteProject() {
   if (!confirm("确认删除该项目及其损益表、投资绑定？此操作不可撤销。")) return;
   if (DEMO_MODE) { const i = DEMO.projects.findIndex((x) => x.id === id); if (i >= 0) DEMO.projects.splice(i, 1); await refresh(); return; }
   const { error } = await sb.from("projects").delete().eq("id", id);
-  msg.textContent = error ? error.message : "已删除。"; msg.className = error ? "form-msg err" : "form-msg ok";
+  msg.textContent = error ? errZh(error) : "已删除。"; msg.className = error ? "form-msg err" : "form-msg ok";
   if (!error) await refresh();
 }
 
@@ -633,6 +822,7 @@ function adminListingsTab(body) {
       <label>面积 sqft<input name="sqft" type="number"></label>
       <label>状态<input name="status" value="在售"></label>
       <label>Zillow 链接<input name="zillow_url"></label>
+      <label>照片 URL（卡片封面）<input name="photo_url" placeholder="https://..."></label>
       <label>公开显示<select name="is_public"><option value="true">公开</option><option value="false">隐藏</option></select></label>
     </div><div class="row-actions"><button class="btn btn-pill" type="submit" id="lst-submit">添加房源</button><button class="btn small" type="button" id="lst-cancel" style="display:none" onclick="cancelEditListing()">取消编辑</button></div>
     <p class="form-msg" id="lst-msg"></p></form>
@@ -655,17 +845,17 @@ function adminListingsTab(body) {
     e.preventDefault(); const f = new FormData(e.target), msg = $("#lst-msg");
     const row = { title: f.get("title"), address: f.get("address") || null, city: f.get("city") || null,
       price: numOrNull(f.get("price")), beds: numOrNull(f.get("beds")), baths: numOrNull(f.get("baths")),
-      sqft: numOrNull(f.get("sqft")), status: f.get("status") || "在售", zillow_url: f.get("zillow_url") || null,
+      sqft: numOrNull(f.get("sqft")), status: f.get("status") || "在售", zillow_url: f.get("zillow_url") || null, photo_url: f.get("photo_url") || null,
       is_public: f.get("is_public") === "true" };
     if (DEMO_MODE) { msg.textContent = "演示模式：不保存。"; msg.className = "form-msg"; return; }
     let error;
     if (window.__editingListingId) {
       ({ error } = await sb.from("listings").update(row).eq("id", window.__editingListingId));
       if (!error) window.__editingListingId = null;
-      msg.textContent = error ? error.message : "已保存修改。";
+      msg.textContent = error ? errZh(error) : "已保存修改。";
     } else {
       ({ error } = await sb.from("listings").insert(row));
-      msg.textContent = error ? error.message : "已添加。";
+      msg.textContent = error ? errZh(error) : "已添加。";
     }
     msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
@@ -678,7 +868,7 @@ function adminListingsTab(body) {
     let error;
     if (state.rates && state.rates.id) ({ error } = await sb.from("education_rates").update(row).eq("id", state.rates.id));
     else ({ error } = await sb.from("education_rates").insert(row));
-    msg.textContent = error ? error.message : "已保存，首页利率已更新。";
+    msg.textContent = error ? errZh(error) : "已保存，首页利率已更新。";
     msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
   });
@@ -688,12 +878,12 @@ window.editListing = function (id) {
   const src = (state.adminListings && state.adminListings.length) ? state.adminListings : state.listings;
   const l = src.find((x) => x.id === id);
   if (!l) return;
-  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不保存。"); return; }
   const form = $("#lst-form"); if (!form) return;
   const set = (n, v) => { const el = form.elements[n]; if (el) el.value = v == null ? "" : v; };
   set("title", l.title); set("address", l.address); set("city", l.city); set("price", l.price);
   set("beds", l.beds); set("baths", l.baths); set("sqft", l.sqft); set("status", l.status || "在售");
-  set("zillow_url", l.zillow_url); set("is_public", l.is_public === false ? "false" : "true");
+  set("zillow_url", l.zillow_url); set("photo_url", l.photo_url); set("is_public", l.is_public === false ? "false" : "true");
   window.__editingListingId = id;
   const title = $("#lst-title"); if (title) title.textContent = "编辑房源：" + (l.title || "");
   const btn = $("#lst-submit"); if (btn) btn.textContent = "保存修改";
@@ -713,9 +903,9 @@ window.cancelEditListing = function () {
 
 window.delListing = async function (id) {
   if (!confirm("确认删除该房源？")) return;
-  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不删除。"); return; }
   const { error } = await sb.from("listings").delete().eq("id", id);
-  if (error) alert("删除失败：" + error.message); else await refresh();
+  if (error) toast("删除失败：" + errZh(error)); else await refresh();
 };
 
 function adminBindTab(body) {
@@ -785,11 +975,11 @@ function adminBindTab(body) {
         share_pct: c.share === "" ? null : Number(c.share), status: c.status || "已确认",
         distributed: Number(c.dist) || 0, note: c.note.trim() || null };
       const { error } = await sb.from("investments").upsert(row, { onConflict: "investor_id,project_id" });
-      if (error) errs.push(error.message);
+      if (error) errs.push(errZh(error));
     }
     for (const ex of toDelete) {
       const { error } = await sb.from("investments").delete().eq("id", ex.id);
-      if (error) errs.push(error.message);
+      if (error) errs.push(errZh(error));
     }
     msg.textContent = errs.length ? "部分失败：" + errs[0] : `已保存：写入 ${checked.length} 人，解绑 ${toDelete.length} 人。`;
     msg.className = errs.length ? "form-msg err" : "form-msg ok";
@@ -799,21 +989,25 @@ function adminBindTab(body) {
 
 window.unbindInvestment = async function (id) {
   if (!confirm("确认解绑这条投资？（删除投资人 × 项目的绑定记录）")) return;
-  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不删除。"); return; }
   const { error } = await sb.from("investments").delete().eq("id", id);
-  if (error) { alert("解绑失败：" + error.message); return; }
+  if (error) { toast("解绑失败：" + errZh(error)); return; }
   await refresh();
 };
 
 function adminReviewTab(body) {
+  const ST = { pending: "待审核", approved: "已通过", rejected: "已拒绝" };
+  const subs = state.submissions.slice().sort((a, b) => (a.status === "pending" ? 0 : 1) - (b.status === "pending" ? 0 : 1));
   body.innerHTML = `<div class="glass panel"><h3>代理房源审核</h3>
-  ${state.submissions.length ? state.submissions.map((s) => {
+  ${subs.length ? subs.map((s) => {
     const agent = state.profiles.find((p) => p.id === s.agent_id);
-    return `<div class="list-item"><strong>${esc(s.title)}</strong> — ${money(s.price)} · ${esc(s.city || "")} · 提交人：${esc(agent ? (agent.display_name || agent.email) : s.agent_id)} · 状态：${esc(s.status)}
-      <div class="row-actions">
+    return `<div class="list-item"><strong>${esc(s.title)}</strong> — ${money(s.price)} · ${esc(s.city || "")} · ${s.beds ?? "—"}卧/${s.baths ?? "—"}卫 · 提交人：${esc(agent ? (agent.display_name || agent.email) : s.agent_id)} · <strong>${esc(ST[s.status] || s.status)}</strong>
+      ${s.description ? `<br><span class="form-msg">${esc(s.description)}</span>` : ""}
+      ${s.zillow_url ? ` · <a href="${esc(s.zillow_url)}" target="_blank" rel="noopener">Zillow ↗</a>` : ""}
+      ${s.status === "pending" ? `<div class="row-actions">
         <button class="btn small" onclick="reviewSubmission('${s.id}', true)">通过并上架</button>
         <button class="btn small danger" onclick="reviewSubmission('${s.id}', false)">拒绝</button>
-      </div></div>`;
+      </div>` : ""}</div>`;
   }).join("") : "<p>暂无提交。</p>"}</div>`;
 }
 window.reviewSubmission = async function (id, ok) {
@@ -824,119 +1018,167 @@ window.reviewSubmission = async function (id, ok) {
     await refresh(); return;
   }
   const { error } = await sb.from("agent_submissions").update({ status: ok ? "approved" : "rejected" }).eq("id", id);
-  if (error) { alert("操作失败：" + error.message); return; }
+  if (error) { toast("操作失败：" + errZh(error)); return; }
   if (ok) {
-    await sb.from("listings").insert({ title: s.title, address: s.address, city: s.city, price: s.price,
+    const ins = await sb.from("listings").insert({ title: s.title, address: s.address, city: s.city, price: s.price,
       beds: s.beds, baths: s.baths, sqft: s.sqft, photo_url: s.photo_url, zillow_url: s.zillow_url,
       status: "在售", is_public: true, created_by: s.agent_id });
+    if (ins.error) { toast("已标记通过，但上架失败：" + errZh(ins.error) + "。请到「房源管理」手动添加。", true); await refresh(); return; }
   }
+  toast(ok ? "已通过并上架" : "已拒绝");
   await refresh();
 };
 
 function adminRolesTab(body) {
+  const newcomers = state.profiles.filter((p) => p.role === "visitor").length;
   body.innerHTML = `<div class="glass panel"><h3>账号角色管理</h3>
-  ${state.profiles.map((p) => `<div class="list-item">${esc(p.display_name || "")} ${esc(p.email)} —
-    <select onchange="setRole('${p.id}', this.value)">
-      ${["visitor", "investor", "agent", "admin"].map((r) => `<option value="${r}" ${p.role === r ? "selected" : ""}>${r}</option>`).join("")}
+  ${newcomers ? `<p class="form-msg ok">有 ${newcomers} 个新注册账号还是「访客」，确认身份后在下面改成投资人或合作代理。</p>` : ""}
+  ${state.profiles.slice().sort((a, b) => (a.role === "visitor" ? 0 : 1) - (b.role === "visitor" ? 0 : 1)).map((p) => `<div class="list-item">${esc(p.display_name || "（未填姓名）")} · ${esc(p.email)} · 注册于 ${esc(String(p.created_at || "").slice(0, 10))} —
+    <select onchange="setRole('${p.id}', this.value, this)" ${state.user && p.id === state.user.id ? "disabled title='不能修改自己的角色'" : ""}>
+      ${["visitor", "investor", "agent", "admin"].map((r) => `<option value="${r}" ${p.role === r ? "selected" : ""}>${roleName(r)}</option>`).join("")}
     </select></div>`).join("") || "<p>暂无账号。</p>"}
-  <p class="form-msg">提示：新注册账号默认是 visitor；把合作伙伴改成 investor、外部代理改成 agent 后，他们登录即按对应权限看数据。</p></div>`;
+  <p class="form-msg">新注册账号默认是「访客」。把合作伙伴改成「投资人」、外部代理改成「合作代理」后，他们刷新页面即按对应权限看数据。</p></div>`;
 }
-window.setRole = async function (id, role) {
+window.setRole = async function (id, role, sel) {
   if (DEMO_MODE) { const p = DEMO.profiles.find((x) => x.id === id); if (p) p.role = role; return; }
+  const p = state.profiles.find((x) => x.id === id);
+  if (role === "admin" && !confirm(`确定把 ${p ? p.email : "该账号"} 设为管理员？管理员可以看到和修改全部数据。`)) {
+    if (sel && p) sel.value = p.role; return;
+  }
   const { error } = await sb.from("profiles").update({ role }).eq("id", id);
-  if (error) alert("修改失败：" + error.message);
+  if (error) { toast("修改失败：" + errZh(error), true); if (sel && p) sel.value = p.role; return; }
+  if (p) p.role = role;
+  toast(`已改为「${roleName(role)}」`);
 };
 
 /* ---------------- auth ---------------- */
 let authMode = "login";
-function openAuth() { $("#auth-modal").classList.remove("hidden"); }
-function closeAuth() { $("#auth-modal").classList.add("hidden"); }
+function openAuth() { openModal("auth-modal"); }
+function closeAuth() { closeModal("auth-modal"); }
+window.openAuth = openAuth;
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const signup = mode === "signup";
+  $("#auth-title").textContent = signup ? "注册账号" : "登录";
+  $("#auth-submit").textContent = signup ? "注册" : "登录";
+  $("#auth-hint").textContent = signup
+    ? "注册后默认是访客；我们确认身份后，会把账号开通为投资人或合作代理。"
+    : "投资人、合作代理用邮箱登录，查看自己的项目与房源。";
+  $("#auth-name-wrap").classList.toggle("hidden", !signup);
+  $("#auth-name").required = signup;
+  $("#auth-password").setAttribute("autocomplete", signup ? "new-password" : "current-password");
+  $("#auth-password").minLength = signup ? 8 : 6;
+  $("#auth-password").placeholder = signup ? "至少 8 位" : "";
+  $("#auth-toggle").textContent = signup ? "已有账号？登录" : "没有账号？注册";
+  $("#auth-forgot").classList.toggle("hidden", signup);
+  ["#auth-msg", "#auth-reset-msg"].forEach((s) => { $(s).textContent = ""; $(s).className = "form-msg"; });
+}
 
 async function syncAuthUI() {
   const badge = $("#user-badge"), btnA = $("#btn-auth"), btnL = $("#btn-logout");
   if (DEMO_MODE) {
     btnA.classList.add("hidden"); btnL.classList.add("hidden");
     badge.classList.remove("hidden");
-    badge.textContent = "演示身份：" + state.role;
+    badge.textContent = "演示身份：" + roleName(state.role);
+    $("#nav-admin").classList.toggle("hidden", state.role !== "admin");
     return;
   }
   if (state.user) {
-    const { data } = await sb.from("profiles").select("*").eq("id", state.user.id).single();
+    const { data } = await sb.from("profiles").select("*").eq("id", state.user.id).maybeSingle();
     state.profile = data || null;
     state.role = (data && data.role) || "visitor";
     badge.classList.remove("hidden");
-    badge.textContent = (data && (data.display_name || data.email)) + " · " + state.role;
+    badge.textContent = ((data && (data.display_name || data.email)) || state.user.email) + " · " + roleName(state.role);
     btnA.classList.add("hidden"); btnL.classList.remove("hidden");
   } else {
     state.role = "visitor"; state.profile = null;
     badge.classList.add("hidden"); btnA.classList.remove("hidden"); btnL.classList.add("hidden");
   }
+  $("#nav-admin").classList.toggle("hidden", state.role !== "admin");
+  $("#nav-mine").classList.toggle("hidden", state.role !== "investor");
 }
 
 async function onAuthSubmit(e) {
   e.preventDefault();
-  const email = $("#auth-email").value, pw = $("#auth-password").value, msg = $("#auth-msg");
-  msg.textContent = ""; msg.className = "form-msg";
-  if (authMode === "signup") {
-    const { error } = await sb.auth.signUp({ email, password: pw, options: { data: { display_name: $("#auth-name").value } } });
-    if (error) { msg.textContent = error.message; msg.classList.add("err"); return; }
-    msg.textContent = "注册成功。如邮箱确认已开启，请先去邮箱点确认链接再登录。"; msg.classList.add("ok");
-    return;
-  }
-  const { error } = await sb.auth.signInWithPassword({ email, password: pw });
-  if (error) { msg.textContent = error.message; msg.classList.add("err"); return; }
-  closeAuth();
+  const btn = $("#auth-submit");
+  await withBusy(btn, authMode === "signup" ? "注册中…" : "登录中…", async () => {
+    const email = $("#auth-email").value.trim().toLowerCase(), pw = $("#auth-password").value, msg = $("#auth-msg");
+    msg.textContent = ""; msg.className = "form-msg";
+    if (authMode === "signup") {
+      if (pw.length < 8) { msg.textContent = "密码至少需要 8 位。"; msg.classList.add("err"); return; }
+      const { data, error } = await sb.auth.signUp({ email, password: pw, options: {
+        data: { display_name: $("#auth-name").value.trim() },
+        emailRedirectTo: window.location.origin + "/" } });
+      if (error) { msg.textContent = errZh(error); msg.classList.add("err"); return; }
+      if (data && data.session) {
+        closeAuth(); toast("注册成功，已登录。我们确认身份后会为你开通投资人/代理权限。");
+      } else {
+        setAuthMode("login");
+        msg.textContent = `注册成功！确认邮件已发到 ${email}，点邮件里的链接后回来这里登录（没收到请看垃圾邮件箱）。`;
+        msg.className = "form-msg ok";
+      }
+      return;
+    }
+    const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) { msg.textContent = errZh(error); msg.classList.add("err"); return; }
+    $("#auth-password").value = "";
+    closeAuth();
+  });
 }
 
 /* ---------------- password reset ---------------- */
-function openReset() { $("#reset-modal").classList.remove("hidden"); }
-function closeReset() { $("#reset-modal").classList.add("hidden"); }
+function openReset() { openModal("reset-modal"); }
+function closeReset() { closeModal("reset-modal"); }
 
 async function onForgotPassword(e) {
   e.preventDefault();
   const email = $("#auth-email").value.trim();
   const msg = $("#auth-reset-msg");
   msg.textContent = ""; msg.className = "form-msg";
-  if (!email) { msg.textContent = "请先填写邮箱，再点「忘记密码？」。"; msg.classList.add("err"); return; }
-  const { error } = await sb.auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.origin + window.location.pathname
+  if (!email) { msg.textContent = "请先在上面填写邮箱，再点「忘记密码？」。"; msg.classList.add("err"); $("#auth-email").focus(); return; }
+  await withBusy(e.target, "发送中…", async () => {
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + "/" });
+    if (error) { msg.textContent = errZh(error); msg.classList.add("err"); return; }
+    msg.textContent = `重置邮件已发到 ${email}，点邮件里的链接设置新密码（没收到请看垃圾邮件箱）。`; msg.classList.add("ok");
   });
-  if (error) { msg.textContent = error.message; msg.classList.add("err"); return; }
-  msg.textContent = "重置邮件已发送，请去邮箱点链接设置新密码"; msg.classList.add("ok");
 }
 
 async function onResetSubmit(e) {
   e.preventDefault();
   const pw = $("#reset-password").value, pw2 = $("#reset-password2").value, msg = $("#reset-msg");
   msg.textContent = ""; msg.className = "form-msg";
-  if (pw.length < 6) { msg.textContent = "密码至少需要 6 位。"; msg.classList.add("err"); return; }
+  if (pw.length < 8) { msg.textContent = "密码至少需要 8 位。"; msg.classList.add("err"); return; }
   if (pw !== pw2) { msg.textContent = "两次输入的密码不一致。"; msg.classList.add("err"); return; }
-  const { error } = await sb.auth.updateUser({ password: pw });
-  if (error) { msg.textContent = error.message; msg.classList.add("err"); return; }
-  closeReset();
-  await sb.auth.signOut(); // 退出重置会话，回到未登录状态用新密码登录
-  authMode = "login";
-  $("#auth-title").textContent = "登录";
-  $("#auth-submit").textContent = "登录";
-  $("#auth-name-wrap").classList.add("hidden");
-  $("#auth-toggle").textContent = "没有账号？注册";
-  $("#auth-forgot").classList.remove("hidden");
-  const amsg = $("#auth-msg");
-  amsg.textContent = "密码已更新，请用新密码登录"; amsg.className = "form-msg ok";
-  openAuth();
+  await withBusy($("#reset-submit"), "保存中…", async () => {
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (error) { msg.textContent = errZh(error); msg.classList.add("err"); return; }
+    closeReset();
+    history.replaceState(null, "", window.location.pathname);
+    toast("密码已更新，你已登录。");
+  });
 }
 
 /* ---------------- orchestration ---------------- */
+let refreshing = null;
 async function refresh() {
-  await loadPublic();
-  await loadInvestorTier();
-  await loadMyInvestments();
-  await loadAdminData();
-  await loadAgentData();
-  await loadRentals();
-  renderRates(); renderListings(); renderProjects(); renderMyMoney();
-  renderAgent(); renderAdmin(); renderRentals();
-  $("#project-detail").innerHTML = "";
+  // 同时只跑一次；期间又被触发就排队再跑一次
+  if (refreshing) { refreshing.again = true; return refreshing.p; }
+  refreshing = { again: false };
+  refreshing.p = (async () => {
+    try {
+      await loadPublic();
+      await Promise.all([loadInvestorTier(), loadMyInvestments(), loadAdminData(), loadAgentData(), loadRentals()]);
+      renderRates(); renderListings(); renderProjects(); renderMyMoney();
+      renderAgent(); renderAdmin(); renderRentals(); renderHeroStats();
+    } catch (err) {
+      console.error(err); toast("数据加载失败：" + errZh(err), true);
+    }
+  })();
+  const r = refreshing;
+  await r.p;
+  refreshing = null;
+  if (r.again) return refresh();
 }
 
 async function init() {
@@ -953,32 +1195,59 @@ async function init() {
     $("#demo-bar").classList.remove("hidden");
     $("#demo-role").addEventListener("change", async (e) => { state.role = e.target.value; await syncAuthUI(); await refresh(); });
   } else {
-    $("#btn-auth").addEventListener("click", openAuth);
+    $("#btn-auth").addEventListener("click", () => { setAuthMode("login"); openAuth(); });
     $("#auth-close").addEventListener("click", closeAuth);
-    $("#auth-toggle").addEventListener("click", (e) => {
-      e.preventDefault();
-      authMode = authMode === "login" ? "signup" : "login";
-      $("#auth-title").textContent = authMode === "login" ? "登录" : "注册";
-      $("#auth-submit").textContent = authMode === "login" ? "登录" : "注册";
-      $("#auth-name-wrap").classList.toggle("hidden", authMode === "login");
-      $("#auth-toggle").textContent = authMode === "login" ? "没有账号？注册" : "已有账号？登录";
-      $("#auth-forgot").classList.toggle("hidden", authMode === "signup");
-      $("#auth-reset-msg").textContent = ""; $("#auth-reset-msg").className = "form-msg";
+    $("#auth-toggle").addEventListener("click", (e) => { e.preventDefault(); setAuthMode(authMode === "login" ? "signup" : "login"); });
+    $("#auth-pw-toggle").addEventListener("click", () => {
+      const i = $("#auth-password"), show = i.type === "password";
+      i.type = show ? "text" : "password"; $("#auth-pw-toggle").textContent = show ? "隐藏" : "显示";
     });
     $("#auth-form").addEventListener("submit", onAuthSubmit);
     $("#auth-forgot").addEventListener("click", onForgotPassword);
     $("#reset-form").addEventListener("submit", onResetSubmit);
     $("#reset-close").addEventListener("click", closeReset);
-    $("#btn-logout").addEventListener("click", async () => { await sb.auth.signOut(); });
+    $("#btn-logout").addEventListener("click", async () => {
+      if (adminDirty && !confirm("后台有没保存的修改，确定退出？")) return;
+      adminDirty = false;
+      await sb.auth.signOut(); toast("已退出登录");
+    });
+    if (/type=recovery/.test(window.location.hash)) openReset();
+    const urlErr = new URLSearchParams(window.location.hash.slice(1)).get("error_description");
+    if (urlErr) { toast(/expired|invalid/i.test(urlErr) ? "邮件链接已过期或已用过，请重新发送。" : urlErr, true); history.replaceState(null, "", window.location.pathname); }
     const { data } = await sb.auth.getSession();
     state.user = data.session ? data.session.user : null;
-    if (window.location.hash.indexOf("type=recovery") >= 0) openReset();
-    sb.auth.onAuthStateChange(async (event, session) => {
-      state.user = session ? session.user : null;
+    let lastUserId = state.user ? state.user.id : null;
+    sb.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") openReset();
-      await syncAuthUI(); await refresh();
+      const uid = session ? session.user.id : null;
+      state.user = session ? session.user : null;
+      // 只在登录身份真正变化时重载；每小时的自动续期（TOKEN_REFRESHED）不再刷新页面、不再清空正在填的表单
+      if (uid === lastUserId) return;
+      const signedIn = !lastUserId && uid;
+      lastUserId = uid;
+      // 不能在回调里直接 await Supabase 请求（会卡住），放到下一轮执行
+      setTimeout(async () => {
+        await syncAuthUI(); await refresh();
+        if (signedIn) {
+          toast("欢迎，" + ((state.profile && state.profile.display_name) || state.user.email) + "（" + roleName(state.role) + "）");
+          const target = state.role === "admin" ? "#admin" : state.role === "investor" ? "#projects" : state.role === "agent" ? "#agents" : null;
+          if (target) document.querySelector(target).scrollIntoView({ behavior: "smooth" });
+          if (state.role === "visitor") toast("已登录。你的账号还在等待开通投资人/代理权限，开通后刷新页面即可看到。");
+        }
+      }, 0);
     });
   }
+  $("#detail-close").addEventListener("click", () => closeModal("detail-modal"));
+  $("#project-more").addEventListener("click", () => { projView.shown += PROJECT_PAGE; renderProjects(); });
+  const openCard = (e) => {
+    const c = e.target.closest && e.target.closest(".card.clickable[data-pid]");
+    if (!c || e.target.closest("a,button,select,input")) return;
+    if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+    if (e.type === "keydown") e.preventDefault();
+    showDetail(c.dataset.pid);
+  };
+  $("#project-grid").addEventListener("click", openCard);
+  $("#project-grid").addEventListener("keydown", openCard);
   await syncAuthUI();
   await refresh();
 }
@@ -1079,13 +1348,18 @@ function buildDemoRentRoll() {
 function rentalCard(r) {
   const typeName = r.type === "multi_family" ? "多户 Multi-family" : "独立屋 Single-family";
   const ret = r.annualized_return_pct == null ? "—" : Number(r.annualized_return_pct).toFixed(1) + "%";
+  const photo = r.photo_url ? ` photo" style="background-image:url('${esc(r.photo_url)}')` : "";
   return `<div class="glass card">
-    ${r.photo_url ? `<img class="card-photo" src="${esc(r.photo_url)}" alt="">` : ""}
-    <h3>${esc(r.label)}</h3>
-    <p>${typeName} · ${esc(r.city || "")}, ${esc(r.state || "CA")}</p>
-    <div class="kv"><span>户数</span><strong>${r.unit_count} 户（在租 ${r.occupied_count}）</strong></div>
-    <div class="kv"><span>年租金（毛）</span><strong>$${Number(r.gross_annual_rent || 0).toLocaleString()}</strong></div>
-    <div class="kv"><span>年回报</span><strong>${ret}</strong></div>
+    <div class="ph${photo}"><span>${esc(r.city || "")} · ${r.type === "multi_family" ? "多户出租" : "独立屋出租"}</span></div>
+    <div class="body">
+      <h3>${esc(r.label)}</h3>
+      <p>${typeName} · ${esc(r.city || "")}, ${esc(r.state || "CA")}</p>
+      <div class="kv">
+        <div><span>户数</span><strong>${r.unit_count} 户（在租 ${r.occupied_count}）</strong></div>
+        <div><span>年租金（毛）</span><strong>${money(r.gross_annual_rent || 0)}</strong></div>
+        <div><span>年回报</span><strong>${ret}</strong></div>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -1265,10 +1539,10 @@ function adminRentalsTab(body) {
     if (window.__editingPropId) {
       ({ error } = await sb.from("rental_properties").update(row).eq("id", window.__editingPropId));
       if (!error) window.__editingPropId = null;
-      msg.textContent = error ? error.message : "已保存修改。";
+      msg.textContent = error ? errZh(error) : "已保存修改。";
     } else {
       ({ error } = await sb.from("rental_properties").insert(row));
-      msg.textContent = error ? error.message : "已添加。";
+      msg.textContent = error ? errZh(error) : "已添加。";
     }
     msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
@@ -1283,10 +1557,10 @@ function adminRentalsTab(body) {
     if (window.__editingUnitId) {
       ({ error } = await sb.from("units").update(row).eq("id", window.__editingUnitId));
       if (!error) window.__editingUnitId = null;
-      msg.textContent = error ? error.message : "已保存修改。";
+      msg.textContent = error ? errZh(error) : "已保存修改。";
     } else {
       ({ error } = await sb.from("units").insert(row));
-      msg.textContent = error ? error.message : "已添加。";
+      msg.textContent = error ? errZh(error) : "已添加。";
     }
     msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
@@ -1302,12 +1576,12 @@ function adminRentalsTab(body) {
       const upd = Object.assign({}, row); delete upd.status;
       ({ error } = await sb.from("tenants").update(upd).eq("id", window.__editingTenantId));
       if (!error) { window.__editingTenantId = null; await sb.from("units").update({ status: "occupied" }).eq("id", row.unit_id); }
-      msg.textContent = error ? error.message : "已保存修改。";
+      msg.textContent = error ? errZh(error) : "已保存修改。";
     } else {
       const res = await sb.from("tenants").insert(row).select("id").single();
       error = res.error;
       if (!error && res.data) await sb.from("units").update({ status: "occupied" }).eq("id", row.unit_id);
-      msg.textContent = error ? error.message : "已添加。";
+      msg.textContent = error ? errZh(error) : "已添加。";
     }
     msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
@@ -1322,10 +1596,10 @@ function adminRentalsTab(body) {
     if (window.__editingExpId) {
       ({ error } = await sb.from("property_expenses").update(row).eq("id", window.__editingExpId));
       if (!error) window.__editingExpId = null;
-      msg.textContent = error ? error.message : "已保存修改。";
+      msg.textContent = error ? errZh(error) : "已保存修改。";
     } else {
       ({ error } = await sb.from("property_expenses").insert(row));
-      msg.textContent = error ? error.message : "已添加。";
+      msg.textContent = error ? errZh(error) : "已添加。";
     }
     msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
@@ -1339,10 +1613,10 @@ function adminRentalsTab(body) {
     if (window.__editingRenoId) {
       ({ error } = await sb.from("rental_reno_lines").update(row).eq("id", window.__editingRenoId));
       if (!error) window.__editingRenoId = null;
-      msg.textContent = error ? error.message : "已保存修改。";
+      msg.textContent = error ? errZh(error) : "已保存修改。";
     } else {
       ({ error } = await sb.from("rental_reno_lines").insert(row));
-      msg.textContent = error ? error.message : "已添加。";
+      msg.textContent = error ? errZh(error) : "已添加。";
     }
     msg.className = "form-msg " + (error ? "err" : "ok");
     if (!error) await refresh();
@@ -1350,13 +1624,13 @@ function adminRentalsTab(body) {
 }
 
 async function genMonthlyBills() {
-  if (DEMO_MODE) { alert("演示模式：不生成。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不生成。"); return; }
   const period = new Date().toISOString().slice(0, 7);
   const rows = state.rentalTenants.filter((t) => t.status === "active")
     .map((t) => ({ tenant_id: t.id, period, amount_due: t.rent_amount || 0 }));
-  if (!rows.length) { alert("暂无在租租客。"); return; }
+  if (!rows.length) { toast("暂无在租租客。"); return; }
   const { error } = await sb.from("rent_payments").upsert(rows, { onConflict: "tenant_id,period", ignoreDuplicates: true });
-  alert(error ? "生成失败：" + error.message : "已生成 " + period + " 应收记录。");
+  toast(error ? "生成失败：" + errZh(error) : "已生成 " + period + " 应收记录。");
   if (!error) await refresh();
 }
 
@@ -1364,14 +1638,14 @@ window.markPaidPrompt = async function (tenantId, due, alreadyPaid) {
   const rest = Math.max(0, due - alreadyPaid);
   const v = prompt("登记收款金额（应收 $" + due + "，还差 $" + rest + "）:", rest);
   if (v == null) return;
-  const add = Number(v); if (!(add > 0)) { alert("金额无效。"); return; }
+  const add = Number(v); if (!(add > 0)) { toast("金额无效。"); return; }
   const method = prompt("收款方式（Zelle / 支票 / 现金 / 其他）:", "Zelle") || null;
-  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不保存。"); return; }
   const period = new Date().toISOString().slice(0, 7);
   const { error } = await sb.from("rent_payments").upsert(
     { tenant_id: tenantId, period, amount_due: due, amount_paid: alreadyPaid + add, paid_date: new Date().toISOString().slice(0, 10), method },
     { onConflict: "tenant_id,period" });
-  alert(error ? "登记失败：" + error.message : "已登记。");
+  toast(error ? "登记失败：" + errZh(error) : "已登记。");
   if (!error) await refresh();
 };
 
@@ -1380,31 +1654,31 @@ window.fixPayment = async function (id) {
   if (!pm) return;
   const v = prompt("修正已收金额（应收 $" + Number(pm.amount_due || 0).toLocaleString() + "，当前已收 $" + Number(pm.amount_paid || 0).toLocaleString() + "）:", pm.amount_paid || 0);
   if (v == null) return;
-  const amt = Number(v); if (isNaN(amt) || amt < 0) { alert("金额无效。"); return; }
-  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  const amt = Number(v); if (isNaN(amt) || amt < 0) { toast("金额无效。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不保存。"); return; }
   const { error } = await sb.from("rent_payments").update({ amount_paid: amt, paid_date: amt > 0 ? (pm.paid_date || new Date().toISOString().slice(0, 10)) : null }).eq("id", id);
-  alert(error ? "修正失败：" + error.message : "已修正。");
+  toast(error ? "修正失败：" + errZh(error) : "已修正。");
   if (!error) await refresh();
 };
 
 window.delPayment = async function (id) {
   if (!confirm("确认删除这条收款记录？")) return;
-  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不删除。"); return; }
   const { error } = await sb.from("rent_payments").delete().eq("id", id);
-  if (error) alert("删除失败：" + error.message); else await refresh();
+  if (error) toast("删除失败：" + errZh(error)); else await refresh();
 };
 
 window.delRentalProp = async function (id) {
   if (!confirm("确认删除该出租物业及其全部户、租客、费用记录？")) return;
-  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不删除。"); return; }
   const { error } = await sb.from("rental_properties").delete().eq("id", id);
-  if (error) alert("删除失败：" + error.message); else await refresh();
+  if (error) toast("删除失败：" + errZh(error)); else await refresh();
 };
 
 window.editRentalProp = function (id) {
   const p = state.rentalProps.find((x) => x.id === id);
   if (!p) return;
-  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不保存。"); return; }
   const form = $("#rp-form"); if (!form) return;
   const set = (n, v) => { const el = form.elements[n]; if (el) el.value = v == null ? "" : v; };
   set("label", p.label); set("type", p.type || "multi_family"); set("address", p.address); set("city", p.city); set("zip", p.zip);
@@ -1456,7 +1730,7 @@ function cancelUi(flagName, formId, titleId, titleText, btnId, btnText, cancelId
 window.editUnit = function (id) {
   const u = state.rentalUnits.find((x) => x.id === id);
   if (!u) return;
-  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不保存。"); return; }
   if (!fillForm("#unit-form", u, ["property_id", "unit_label", "beds", "baths", "sqft", "market_rent", "util_water", "util_electric", "util_gas", "util_trash", "status"])) return;
   window.__editingUnitId = id;
   editUi("#unit-form", "#unit-title", "编辑户：" + (u.unit_label || ""), "#unit-submit", "保存修改", "#unit-cancel", "#unit-msg");
@@ -1464,15 +1738,15 @@ window.editUnit = function (id) {
 window.cancelEditUnit = function () { cancelUi("__editingUnitId", "#unit-form", "#unit-title", "新增户", "#unit-submit", "添加户", "#unit-cancel", "#unit-msg"); };
 window.delUnit = async function (id) {
   if (!confirm("确认删除该户？（该户下的租客会一并受影响）")) return;
-  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不删除。"); return; }
   const { error } = await sb.from("units").delete().eq("id", id);
-  if (error) alert("删除失败：" + error.message); else await refresh();
+  if (error) toast("删除失败：" + errZh(error)); else await refresh();
 };
 
 window.editTenant = function (id) {
   const t = state.rentalTenants.find((x) => x.id === id);
   if (!t) return;
-  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不保存。"); return; }
   if (!fillForm("#tenant-form", t, ["unit_id", "name", "phone", "email", "rent_amount", "due_day", "deposit", "lease_start", "lease_end"])) return;
   window.__editingTenantId = id;
   editUi("#tenant-form", "#tenant-title", "编辑租客：" + (t.name || ""), "#tenant-submit", "保存修改", "#tenant-cancel", "#tenant-msg");
@@ -1482,7 +1756,7 @@ window.cancelEditTenant = function () { cancelUi("__editingTenantId", "#tenant-f
 window.editExpense = function (id) {
   const e2 = state.rentalExpenses.find((x) => x.id === id);
   if (!e2) return;
-  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不保存。"); return; }
   if (!fillForm("#exp-form", e2, ["property_id", "category", "description", "amount", "due_date", "paid_date", "vendor", "recurring"])) return;
   window.__editingExpId = id;
   editUi("#exp-form", "#exp-title", "编辑费用", "#exp-submit", "保存修改", "#exp-cancel", "#exp-msg");
@@ -1490,15 +1764,15 @@ window.editExpense = function (id) {
 window.cancelEditExpense = function () { cancelUi("__editingExpId", "#exp-form", "#exp-title", "新增费用", "#exp-submit", "添加费用", "#exp-cancel", "#exp-msg"); };
 window.delExpense = async function (id) {
   if (!confirm("确认删除这笔费用？")) return;
-  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不删除。"); return; }
   const { error } = await sb.from("property_expenses").delete().eq("id", id);
-  if (error) alert("删除失败：" + error.message); else await refresh();
+  if (error) toast("删除失败：" + errZh(error)); else await refresh();
 };
 
 window.editRenoLine = function (id) {
   const l = state.rentalReno.find((x) => x.id === id);
   if (!l) return;
-  if (DEMO_MODE) { alert("演示模式：不保存。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不保存。"); return; }
   if (!fillForm("#reno-form", l, ["property_id", "kind", "item", "amount", "spent_date", "note"])) return;
   window.__editingRenoId = id;
   editUi("#reno-form", "#reno-title", "编辑翻新维修账", "#reno-submit", "保存修改", "#reno-cancel", "#reno-msg");
@@ -1507,14 +1781,14 @@ window.cancelEditRenoLine = function () { cancelUi("__editingRenoId", "#reno-for
 
 window.delRenoLine = async function (id) {
   if (!confirm("确认删除这笔翻新维修记录？")) return;
-  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不删除。"); return; }
   const { error } = await sb.from("rental_reno_lines").delete().eq("id", id);
-  if (error) alert("删除失败：" + error.message); else await refresh();
+  if (error) toast("删除失败：" + errZh(error)); else await refresh();
 };
 
 window.delTenant = async function (id) {
   if (!confirm("确认删除该租客？")) return;
-  if (DEMO_MODE) { alert("演示模式：不删除。"); return; }
+  if (DEMO_MODE) { toast("演示模式：不删除。"); return; }
   const { error } = await sb.from("tenants").delete().eq("id", id);
-  if (error) alert("删除失败：" + error.message); else await refresh();
+  if (error) toast("删除失败：" + errZh(error)); else await refresh();
 };
