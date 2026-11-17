@@ -27,8 +27,15 @@ function render() {
   const fill = recent.length < 6 ? sortProjects(sold).filter((p) => !photoOf(p)).slice(0, 6 - recent.length) : [];
   $("#recent-grid").innerHTML = recent.concat(fill).map(projectCard).join("") || `<p class="empty">${esc(t("empty.projects", "项目数据加载中…"))}</p>`;
 
-  const hero = CFG.HERO_PHOTO || (recent[0] && photoOf(recent[0]));
-  if (hero) $("#hero-media").innerHTML = imgOrPh(hero, "iHome Capital");
+  // 首页大图：按顺序试候选照片，第一张能打开的才用（避免失效外链）
+  const candidates = [CFG.HERO_PHOTO].concat(recent.map(photoOf)).filter(Boolean);
+  (function tryHero(i) {
+    if (i >= candidates.length) return;
+    const im = new Image();
+    im.onload = () => { $("#hero-media").innerHTML = imgOrPh(candidates[i], "iHome Capital"); };
+    im.onerror = () => tryHero(i + 1);
+    im.src = candidates[i];
+  })(0);
   if (CFG.TEAM_PHOTO) { const m = $("#about-media"); m.classList.remove("hidden"); m.innerHTML = imgOrPh(CFG.TEAM_PHOTO, "Team"); }
 
   const rc = $("#rate-card");

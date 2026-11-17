@@ -173,6 +173,14 @@ function sortProjects(list) {
   return list.slice().sort((a, b) => (rank[projectGroup(a)] - rank[projectGroup(b)]) || d(b).localeCompare(d(a)));
 }
 
+/* 外链照片失效（例如 Zillow 下架）时，换成占位，不显示破图 */
+document.addEventListener("error", (e) => {
+  const img = e.target;
+  if (!img || img.tagName !== "IMG" || !img.closest(".card-media,.hero-media,.gallery,.about-media")) return;
+  const ph = document.createElement("span"); ph.className = "ph-label"; ph.textContent = t("ph.photo", "照片待上传");
+  img.replaceWith(ph);
+}, true);
+
 /* ---------- auth state ---------- */
 const auth = { user: null, profile: null, role: "visitor", ready: null };
 async function loadProfile() {
