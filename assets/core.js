@@ -169,8 +169,8 @@ function median(arr) { const a = arr.filter((x) => x != null && !isNaN(x)).map(N
 function bigMoney(n) { if (n == null) return "—"; return lang === "en" ? "$" + (n / 1e6).toFixed(1) + "M" : "$" + Math.round(n / 1e4).toLocaleString("en-US") + " 万"; }
 function sortProjects(list) {
   const rank = { active: 0, sold: 1, cancelled: 2 };
-  const d = (p) => String(p.buy_date || p.created_at || "");
-  return list.slice().sort((a, b) => (rank[projectGroup(a)] - rank[projectGroup(b)]) || d(b).localeCompare(d(a)));
+  const d = (p) => String(p.buy_date || ""); // 没有买入日期的排在最后
+  return list.slice().sort((a, b) => (rank[projectGroup(a)] - rank[projectGroup(b)]) || d(b).localeCompare(d(a)) || String(b.created_at || "").localeCompare(String(a.created_at || "")));
 }
 
 /* 外链照片失效（例如 Zillow 下架）时，换成占位，不显示破图 */
