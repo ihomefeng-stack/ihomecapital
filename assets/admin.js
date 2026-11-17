@@ -153,14 +153,35 @@ function openLead(id) {
 /* ---------------- 翻新项目 ---------------- */
 const sortP = (list) => { const r = { active: 0, sold: 1, cancelled: 2 }; return list.slice().sort((a, b) => (r[projectGroup(a)] - r[projectGroup(b)]) || String(b.buy_date || b.created_at || "").localeCompare(String(a.buy_date || a.created_at || ""))); };
 function projectTable(list) {
-  return `<div class="table-box"><table class="t" style="min-width:820px"><thead><tr><th>项目</th><th>状态</th><th class="r">买入</th><th class="r">卖出 / 目标</th><th>投资人</th><th>照片</th><th>公开</th></tr></thead><tbody>
+  return `<div class="table-box"><table class="t" style="min-width:820px"><thead><tr><th>项目</th><th>状态</th><th class="r">买入</th><th class="r">卖出 / 目标</th><th>投资人</th><th>照片</th><th>官网</th></tr></thead><tbody>
   ${list.map((p) => { const invs = S.investments.filter((i) => i.project_id === p.id);
     return `<tr class="click" data-pid="${p.id}" tabindex="0"><td><b>${esc(p.title)}</b><div class="sub">${esc(p.city || "")}${p.type === "lending" ? " · 借款" : ""}</div></td><td>${statusBadge(p.status)}</td>
     <td class="r">${p.type === "lending" ? money(p.loan_amount) : money(p.buy_price)}</td><td class="r">${money(p.sell_price || p.expected_sale_price)}</td>
     <td>${invs.length ? `${invs.length} 人 · ${money(invs.reduce((s, i) => s + Number(i.amount || 0), 0))}` : '<span class="muted">—</span>'}</td>
-    <td>${p.photo_url || (p.gallery || []).length ? `${1 + (p.gallery || []).filter((g) => g !== p.photo_url).length} 张` : '<span class="badge warn">缺</span>'}</td><td>${p.is_public ? "是" : '<span class="muted">否</span>'}</td></tr>`; }).join("") || `<tr><td colspan="7" class="empty">没有项目。</td></tr>`}
+    <td>${p.photo_url || (p.gallery || []).length ? `${1 + (p.gallery || []).filter((g) => g !== p.photo_url).length} 张` : '<span class="badge warn">缺</span>'}</td><td>${pubBtn("projects", p)}</td></tr>`; }).join("") || `<tr><td colspan="7" class="empty">没有项目。</td></tr>`}
   </tbody></table></div>`;
 }
+/* 一键上架 / 下架（官网显示或隐藏） */
+const pubBtn = (table, r) => `<button type="button" class="btn btn-sm ${r.is_public ? "btn-soft" : ""}" data-pub="${table}" data-id="${r.id}" aria-pressed="${!!r.is_public}" title="${r.is_public ? "点一下从官网下架" : "点一下在官网上架"}">${r.is_public ? "已上架 · 下架" : "已下架 · 上架"}</button>`;
+async function togglePublic(btn) {
+  const table = btn.dataset.pub, id = btn.dataset.id;
+  const list = table === "projects" ? S.projects : S.listings;
+  const r = list.find((x) => x.id === id); if (!r) return;
+  const next = !r.is_public;
+  await withBusy(btn, "保存中…", async () => {
+    const { error } = await sb.from(table).update({ is_public: next }).eq("id", id);
+    if (error) return toast("操作失败：" + errZh(error), true);
+    r.is_public = next;
+    toast(`「${r.title}」已${next ? "在官网上架" : "从官网下架"}`);
+  });
+  btn.outerHTML = pubBtn(table, r);
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest("[data-pub]");
+  if (!b) return;
+  e.stopPropagation(); e.preventDefault();
+  togglePublic(b);
+}, true);
 function bindProjectRows() { $$("tr[data-pid]", main).forEach((tr) => { const go = () => editProject(tr.dataset.pid); tr.addEventListener("click", go); tr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); }); }); }
 function viewProjects() {
   const groups = { active: [], sold: [], cancelled: [], all: S.projects };
@@ -382,9 +403,9 @@ function viewInvestors() {
 function viewListings() {
   const r = S.rates || {};
   main.innerHTML = `<div class="page-head"><h1>在售房源</h1><button class="btn btn-primary" type="button" id="new-lst">＋ 新增房源</button></div>
-  <div class="table-box"><table class="t" style="min-width:700px"><thead><tr><th>房源</th><th class="r">价格</th><th>卧/卫/面积</th><th>状态</th><th>公开</th></tr></thead><tbody>
+  <div class="table-box"><table class="t" style="min-width:700px"><thead><tr><th>房源</th><th class="r">价格</th><th>卧/卫/面积</th><th>状态</th><th>官网</th></tr></thead><tbody>
   ${S.listings.map((l) => `<tr class="click" data-lst="${l.id}" tabindex="0"><td><b>${esc(l.title)}</b><div class="sub">${esc([l.address !== l.title ? l.address : "", l.city].filter(Boolean).join(", "))}</div></td><td class="r">${money(l.price)}</td>
-    <td>${num(l.beds)} / ${num(l.baths)} / ${l.sqft ? num(l.sqft) + " sqft" : "—"}</td><td>${esc(l.status || "")}</td><td>${l.is_public ? "是" : '<span class="muted">否</span>'}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">暂无房源。</td></tr>`}
+    <td>${num(l.beds)} / ${num(l.baths)} / ${l.sqft ? num(l.sqft) + " sqft" : "—"}</td><td>${esc(l.status || "")}</td><td>${pubBtn("listings", l)}</td></tr>`).join("") || `<tr><td colspan="5" class="empty">暂无房源。</td></tr>`}
   </tbody></table></div>
   <section class="panel" style="margin-top:24px;max-width:760px"><h2 class="h-sm" style="margin-bottom:12px">首页利率快照</h2>
     <form class="form" id="rate-form"><div class="form-row">
