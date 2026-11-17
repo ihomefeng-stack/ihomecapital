@@ -3,192 +3,172 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>iHome Capital · 南加州翻新住宅投资</title>
-<meta name="description" content="iHome Capital — 南加州翻新住宅投资：合伙翻新与短期借款项目，投资人可随时查看自己资金所在项目与状态。">
-<meta property="og:title" content="iHome Capital · 南加州翻新住宅投资">
-<meta property="og:description" content="南加州住宅翻新、出售与长期出租项目记录。Universal Elite Inc · CA DRE #02039413">
+<title>iHome Capital · 南加州住宅翻新与投资</title>
+<meta name="description" content="iHome Capital 在洛杉矶县、橙县和内陆帝国买入、翻新、出售和出租住宅。自 2020 年起已完成 30 多个翻新项目。Universal Elite Inc · CA DRE #02039413">
+<link rel="canonical" href="https://ihomecapital.com/">
+<meta property="og:title" content="iHome Capital · 南加州住宅翻新与投资">
+<meta property="og:description" content="买入、翻新、出售。每一笔账都看得见。">
 <meta property="og:url" content="https://ihomecapital.com/">
 <meta property="og:type" content="website">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f5f2">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101014">
+<meta name="theme-color" content="#FFFFFF">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="iHome">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="stylesheet" href="styles.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="config.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"RealEstateAgent","name":"iHome Capital","legalName":"Universal Elite Inc","url":"https://ihomecapital.com/","telephone":"+1-626-510-0292","areaServed":["Los Angeles County","Orange County","Inland Empire"],"address":{"@type":"PostalAddress","addressRegion":"CA","addressCountry":"US"}}</script>
 </head>
-<body>
-<div class="glow glow-a"></div>
-<div class="glow glow-b"></div>
+<body data-i18n-title="title.home">
+<a class="sr-only" href="#main">跳到正文</a>
+<header id="site-header" class="site-header"><div class="wrap"><a class="brand" href="index.html">iHome Capital</a></div></header>
 
-<header class="nav glass">
-  <div class="nav-inner">
-    <a class="brand" href="#home">iHome Capital <span>· 房屋投资</span></a>
-    <nav class="nav-links">
-      <a href="#admin" id="nav-admin" class="nav-admin hidden">管理后台</a>
-      <a href="#projects" id="nav-mine" class="hidden">我的投资</a>
-      <a href="#listings">在售房源</a>
-      <a href="#projects">投资项目</a>
-      <a href="#rentals">出租物业</a>
-      <a href="#education">投资教育</a>
-      <a href="#agents">代理合作</a>
-      <a href="#contact">联系</a>
-    </nav>
-    <div class="nav-actions">
-      <span id="user-badge" class="user-badge hidden"></span>
-      <button id="btn-auth" class="btn btn-pill">登录 / 注册</button>
-      <button id="btn-logout" class="btn btn-ghost hidden">退出</button>
-      <button id="btn-theme" class="btn btn-ghost" title="深色/浅色">◐</button>
+<main id="main">
+<div class="wrap">
+  <section class="hero" aria-labelledby="hero-title">
+    <div>
+      <p class="eyebrow" data-i18n="home.eyebrow">南加州住宅投资 · SINCE 2020</p>
+      <h1 class="h-xl" id="hero-title" style="margin:16px 0 20px" data-i18n="home.title">买入、翻新、出售。<br>每一笔账都看得见。</h1>
+      <p class="lead" style="max-width:540px" data-i18n="home.lead">我们在洛杉矶县、橙县和内陆帝国买入需要翻新的独立屋，翻新后出售或长期出租。合伙人登录后可以随时看到自己资金所在的项目、进度和完整损益表。</p>
+      <div class="cta-row">
+        <a class="btn btn-primary btn-lg" href="#contact" data-i18n="home.cta1">预约沟通</a>
+        <a class="btn btn-lg" href="projects.html" data-i18n="home.cta2">看项目业绩 →</a>
+      </div>
     </div>
+    <div class="hero-media" id="hero-media" style="position:relative"><span class="ph-label" data-i18n="ph.hero">翻新完成的房子照片</span></div>
+  </section>
+</div>
+
+<section aria-label="业绩数字" style="border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg-soft)">
+  <div class="wrap stats" id="stats">
+    <div><div class="stat-num">—</div><div class="stat-label" data-i18n="stat.sold">个翻新项目已完成出售</div></div>
+    <div><div class="stat-num">—</div><div class="stat-label" data-i18n="stat.volume">累计成交额</div></div>
+    <div><div class="stat-num">—</div><div class="stat-label" data-i18n="stat.days">中位持有周期（买入到卖出）</div></div>
+    <div><div class="stat-num">—</div><div class="stat-label" data-i18n="stat.units">长期出租在管</div></div>
   </div>
-  <div id="demo-bar" class="demo-bar hidden">
-    本地演示模式（未连接 Supabase）— 数据为演示数据。
-    预览身份：
-    <select id="demo-role">
-      <option value="visitor">访客</option>
-      <option value="investor">投资人（演示）</option>
-      <option value="agent">代理（演示）</option>
-      <option value="admin">管理员</option>
-    </select>
-    <span class="demo-note">演示模式下的修改不会保存。</span>
-  </div>
-</header>
+</section>
 
-<main>
-  <!-- 首页 -->
-  <section id="home" class="hero">
-    <h1>南加州翻新住宅投资</h1>
-    <p class="hero-sub">我们在南加州买入、翻新、出售和出租住宅。下面是真实的项目记录：已完成的、正在做的，以及长期出租的物业。</p>
-    <div class="hero-cta">
-      <a class="btn btn-pill" href="#projects">看投资项目</a>
-      <a class="btn btn-ghost" href="#contact">联系我们</a>
-    </div>
-    <div id="hero-stats" class="hero-cards"></div>
-  </section>
-
-  <!-- 管理员后台（登录为管理员后显示在最前面，不用滚到底） -->
-  <section id="admin" class="section hidden">
-    <h2>管理员后台</h2>
-    <div id="admin-area"></div>
-  </section>
-
-  <!-- 在售房源 -->
-  <section id="listings" class="section">
-    <h2>在售房源</h2>
-    <div id="listing-grid" class="grid"></div>
-  </section>
-
-  <!-- 投资项目 -->
-  <section id="projects" class="section">
-    <h2>投资项目</h2>
-    <p class="section-sub">合伙翻新项目与借款项目。点项目卡片看详情；参与项目的投资人登录后可看自己的持仓与完整损益表。</p>
-    <div id="my-money" class="glass panel hidden"></div>
-    <div id="project-filters" class="tabs" role="tablist"></div>
-    <div id="project-grid" class="grid"></div>
-    <div class="more-wrap"><button id="project-more" class="btn hidden" type="button">显示更多</button></div>
-  </section>
-
-  <!-- 出租物业 -->
-  <section id="rentals" class="section">
-    <h2>出租物业</h2>
-    <p class="section-sub">长期出租物业组合与年回报。参与的投资人登录后可看自己物业的租金、费用和收租汇总（不含租客个人信息）。</p>
-    <div id="rental-grid" class="grid"></div>
-    <div id="rental-investor"></div>
-  </section>
-
-  <!-- 投资教育 -->
-  <section id="education" class="section">
-    <h2>投资教育 · 投资热点</h2>
-    <div id="rate-card" class="glass panel"></div>
-    <div class="grid" id="edu-grid">
-      <div class="glass card"><h3>市场方向：利率高位震荡</h3><p>30 年期房贷利率仍在高位，买家购买力受压，翻新项目的退出价格要按保守口径测算，ARV 取同区装修好成交的最高锚点价的 95%。</p></div>
-      <div class="glass card"><h3>市场方向：南加州库存仍紧</h3><p>南加州优质学区与大地块房源供给长期不足，翻新后零售需求稳定；大地、转角、双面通路的地块有额外溢价空间。</p></div>
-      <div class="glass card"><h3>市场方向：现金买家占比高</h3><p>高利率环境下现金成交占比上升，全现金、快过户的出价在批发市场更有竞争力，但纪律不变：不超过 MAO。</p></div>
-      <div class="glass card"><h3>基础课 1：ARV 怎么估</h3><p>ARV（装修后价值）只看同邮编或 1 英里内、180 天内成交的、装修到零售标准的 comp，优先投资者翻新转售的成交；总改项目 ARV = 最高合格 comp 的 95%。</p></div>
-      <div class="glass card"><h3>基础课 2：买入纪律</h3><p>最高可接受出价 MAO = ARV × 80%，不再另扣装修费。要价高于 MAO 的项目直接放弃，不追价。</p></div>
-      <div class="glass card"><h3>基础课 3：回报怎么算</h3><p>利润率 = 利润 ÷ 总成本；年化回报 = 利润 ÷ 总投入（总成本）÷（持有天数 ÷ 365）。看回报永远用投入口径，不用售价口径。</p></div>
-    </div>
-  </section>
-
-  <!-- 代理合作 -->
-  <section id="agents" class="section">
-    <h2>代理合作</h2>
-    <p class="section-sub">外部代理可以提交房源：注册代理账号 → 提交房源 → 管理员审核 → 通过后上架展示。代理只能看到自己提交的房源及其审核状态。</p>
-    <div id="agent-area"></div>
-  </section>
-
-  <!-- 联系 -->
-  <section id="contact" class="section">
-    <h2>联系</h2>
-    <div class="glass panel contact-panel">
+<div class="wrap">
+  <section class="section" id="track" aria-labelledby="track-title">
+    <div class="section-head">
       <div>
-        <p><strong>Universal Elite Inc</strong> · CA DRE #02039413</p>
-        <p>想了解投资项目、出售房子给我们，或成为合作代理，欢迎直接打电话或发短信。</p>
+        <h2 class="h-lg" id="track-title" data-i18n="track.title">项目业绩</h2>
+        <p class="muted" style="margin-top:8px" data-i18n="track.sub">最近完成的翻新项目。每个项目都可以在公开成交记录里查到。</p>
       </div>
-      <div class="row-actions">
-        <a class="btn btn-pill" href="tel:+16265100292">📞 (626) 510-0292</a>
-        <a class="btn" href="sms:+16265100292">发短信</a>
+      <a class="btn" href="projects.html" data-i18n="track.all">查看全部项目 →</a>
+    </div>
+    <div class="grid" id="recent-grid" aria-live="polite"></div>
+  </section>
+
+  <section class="section" id="how" aria-labelledby="how-title">
+    <h2 class="h-lg" id="how-title" data-i18n="how.title">我们怎么做</h2>
+    <p class="muted" style="margin:8px 0 36px" data-i18n="how.sub">一套固定的买入纪律，三个步骤。</p>
+    <div class="steps">
+      <div class="step"><div class="n">01</div><h3 data-i18n="how.s1t">严格选房买入</h3><p data-i18n="how.s1">只看同区 180 天内翻新成交做 ARV，出价不超过 ARV 的 80%。高于这个价的房子直接放弃，不追价。</p></div>
+      <div class="step"><div class="n">02</div><h3 data-i18n="how.s2t">统一设计与施工管理</h3><p data-i18n="how.s2">按零售买家的标准翻新，控制工期和预算。每一笔装修费用都记入项目损益表。</p></div>
+      <div class="step"><div class="n">03</div><h3 data-i18n="how.s3t">出售或长期出租</h3><p data-i18n="how.s3">翻新后挂牌出售，回收本金和利润；适合的物业转为长期出租，获取稳定现金流。</p></div>
+    </div>
+    <div class="options">
+      <div class="option">
+        <div class="eyebrow" data-i18n="opt.1e">参与方式一</div>
+        <h3 data-i18n="opt.1t">合伙翻新</h3>
+        <p data-i18n="opt.1">和我们一起出资买入、翻新、出售一套房子，按出资比例分享项目利润。</p>
+        <dl class="dl">
+          <div><dt data-i18n="opt.hold">以往持有周期</dt><dd id="opt-days">—</dd></div>
+          <div><dt data-i18n="opt.src">回报来源</dt><dd data-i18n="opt.srcv">卖出利润分成</dd></div>
+          <div><dt data-i18n="opt.trans">透明度</dt><dd data-i18n="opt.transv">登录看完整损益表</dd></div>
+          <div><dt data-i18n="opt.min">起投金额与条款</dt><dd data-i18n="opt.minv">来电了解</dd></div>
+        </dl>
+      </div>
+      <div class="option">
+        <div class="eyebrow" data-i18n="opt.2e">参与方式二</div>
+        <h3 data-i18n="opt.2t">短期借款</h3>
+        <p data-i18n="opt.2">以项目房产作抵押，向我们提供短期过桥借款，按约定利率收取利息。</p>
+        <dl class="dl">
+          <div><dt data-i18n="opt.col">抵押</dt><dd data-i18n="opt.colv">项目房产</dd></div>
+          <div><dt data-i18n="opt.term">期限</dt><dd data-i18n="opt.termv">按项目约定</dd></div>
+          <div><dt data-i18n="opt.rate">利率</dt><dd data-i18n="opt.ratev">登录后可见</dd></div>
+          <div><dt data-i18n="opt.min">起投金额与条款</dt><dd data-i18n="opt.minv">来电了解</dd></div>
+        </dl>
+      </div>
+    </div>
+    <p class="muted small" style="margin-top:18px" data-i18n="opt.note">投资机会仅向符合条件的投资人提供，具体条款以正式投资文件为准。</p>
+  </section>
+
+  <section class="section" id="sell-cta" aria-labelledby="sell-title">
+    <div class="panel" style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;justify-content:space-between;padding:32px">
+      <div style="flex:1 1 420px">
+        <h2 class="h-md" id="sell-title" data-i18n="sellcta.title">想卖房？我们可以现金买入，不用你先装修。</h2>
+        <p class="muted" style="margin-top:8px" data-i18n="sellcta.sub">房子旧、要维修、有租客、继承房都可以。填地址，我们尽快给你一个报价，接不接受都没关系。</p>
+      </div>
+      <a class="btn btn-primary btn-lg" href="sell.html" data-i18n="sellcta.btn">获取现金报价 →</a>
+    </div>
+  </section>
+
+  <section class="section" id="about" aria-labelledby="about-title">
+    <div class="about">
+      <div class="about-media hidden" id="about-media"></div>
+      <div>
+        <h2 class="h-lg" id="about-title" data-i18n="about.title">关于我们</h2>
+        <p class="lead" style="margin:16px 0" data-i18n="about.p1">iHome Capital 由 Universal Elite Inc 运营，自 2020 年开始在南加州做住宅翻新，项目分布在洛杉矶县、橙县和内陆帝国。</p>
+        <p class="lead" style="margin-bottom:24px" data-i18n="about.p2">我们的原则很简单：买入有纪律，账目全公开，每个项目都让合伙人看得清清楚楚。</p>
+        <div class="chips"><span class="badge accent">Universal Elite Inc</span><span class="badge accent">CA DRE #02039413</span></div>
       </div>
     </div>
   </section>
+
+  <section class="section" id="insights" aria-labelledby="ins-title">
+    <div class="section-head"><h2 class="h-lg" id="ins-title" data-i18n="ins.title">市场观点</h2></div>
+    <div class="grid">
+      <article class="panel" id="rate-card"><div class="card-meta" data-i18n="ins.rate">利率快照</div><h3 class="h-sm" style="margin:8px 0">—</h3><p class="muted"></p></article>
+      <article class="panel"><div class="card-meta" data-i18n="ins.dir">市场方向</div><h3 class="h-sm" style="margin:8px 0" data-i18n="ins.2t">南加州库存仍紧</h3><p class="muted" data-i18n="ins.2">优质学区和大地块房源长期供给不足，翻新后的零售需求稳定；现金、快过户的出价在批发市场更有竞争力。</p></article>
+      <article class="panel"><div class="card-meta" data-i18n="ins.basic">基础课</div><h3 class="h-sm" style="margin:8px 0" data-i18n="ins.3t">ARV 怎么估，出价怎么定</h3><p class="muted" data-i18n="ins.3">ARV 只用同邮编或 1 英里内、180 天内翻新成交的 comp；出价上限 MAO = ARV × 80%，不再另扣装修费。</p></article>
+    </div>
+  </section>
+
+  <section class="section" id="contact" aria-labelledby="contact-title">
+    <div class="cta-box">
+      <div>
+        <h2 class="h-lg" id="contact-title" data-i18n="contact.title">想了解下一个项目？</h2>
+        <p class="muted" style="margin:12px 0 28px" data-i18n="contact.sub">留下联系方式，我们会在一个工作日内回复。也可以直接打电话或发短信。</p>
+        <a class="phone-big" href="tel:+16265100292"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>(626) 510-0292</a>
+        <p style="margin-top:8px"><a href="sms:+16265100292" data-i18n="contact.sms">发短信</a></p>
+      </div>
+      <form class="form" name="contact" id="contact-form" novalidate>
+        <p class="hp" aria-hidden="true"><label>Website <input name="company_website" tabindex="-1" autocomplete="off"></label></p>
+        <div class="form-row">
+          <label class="field"><span data-i18n="f.name">姓名</span><input name="name" autocomplete="name"></label>
+          <label class="field"><span data-i18n="f.phone">电话或微信</span><input name="phone" autocomplete="tel" inputmode="tel"></label>
+        </div>
+        <label class="field"><span data-i18n="f.email">邮箱（选填）</span><input name="email" type="email" autocomplete="email"></label>
+        <label class="field"><span data-i18n="f.kind">我想了解</span>
+          <select name="kind">
+            <option value="invest" data-i18n="k.invest">合伙翻新项目</option>
+            <option value="lend" data-i18n="k.lend">短期借款项目</option>
+            <option value="sell" data-i18n="k.sell">把我的房子卖给你们</option>
+            <option value="agent" data-i18n="k.agent">成为合作代理</option>
+            <option value="other" data-i18n="k.other">其他</option>
+          </select></label>
+        <label class="field"><span data-i18n="f.msg">想说的话（选填）</span><textarea name="message" rows="3"></textarea></label>
+        <button class="btn btn-primary btn-lg" type="submit" data-i18n="f.submit">提交</button>
+        <p class="form-msg" role="status" id="contact-msg"></p>
+      </form>
+    </div>
+  </section>
+</div>
 </main>
 
-<footer class="footer">
-  <span>iHome Capital · Universal Elite Inc · CA DRE #02039413 · <a href="tel:+16265100292">(626) 510-0292</a></span>
-  <span class="disclaimer">本网站内容仅供参考，不构成任何证券的出售要约或购买邀约。所示回报为历史或预计数据，不代表未来结果；房地产投资有风险，可能损失本金。</span>
-</footer>
+<footer id="site-footer"></footer>
 
-<!-- 项目详情弹窗（手机上从底部弹出） -->
-<div id="detail-modal" class="modal hidden" aria-modal="true" role="dialog">
-  <div class="glass modal-card modal-wide">
-    <button class="modal-close" id="detail-close" aria-label="关闭">×</button>
-    <div id="project-detail"></div>
-  </div>
-</div>
+<!-- Netlify Forms 识别用（不显示）。字段与 JS 提交的一致 -->
+<form name="contact" data-netlify="true" netlify-honeypot="company_website" hidden>
+  <input name="name"><input name="phone"><input name="email"><input name="kind"><input name="message"><input name="address"><input name="details"><input name="company_website">
+</form>
 
-<!-- 操作提示 -->
-<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-
-<!-- 登录/注册弹窗 -->
-<div id="auth-modal" class="modal hidden">
-  <div class="glass modal-card">
-    <button class="modal-close" id="auth-close" aria-label="关闭">×</button>
-    <h3 id="auth-title">登录</h3>
-    <p class="auth-hint" id="auth-hint">投资人、合作代理用邮箱登录，查看自己的项目与房源。</p>
-    <form id="auth-form">
-      <label id="auth-name-wrap" class="hidden">姓名<input type="text" id="auth-name" autocomplete="name" placeholder="方便我们认出你"></label>
-      <label>邮箱<input type="email" id="auth-email" required autocomplete="email" inputmode="email"></label>
-      <label>密码
-        <span class="pw-wrap"><input type="password" id="auth-password" required autocomplete="current-password" minlength="6">
-        <button type="button" class="pw-toggle" id="auth-pw-toggle" aria-label="显示密码">显示</button></span>
-      </label>
-      <button class="btn btn-pill" type="submit" id="auth-submit">登录</button>
-      <p class="auth-switch"><a href="#" id="auth-toggle">没有账号？注册</a> · <a href="#" id="auth-forgot">忘记密码？</a></p>
-      <p class="form-msg" id="auth-msg"></p>
-      <p class="form-msg" id="auth-reset-msg"></p>
-    </form>
-  </div>
-</div>
-
-<!-- 设置新密码弹窗（密码重置邮件链接落地时打开） -->
-<div id="reset-modal" class="modal hidden">
-  <div class="glass modal-card">
-    <button class="modal-close" id="reset-close" aria-label="关闭">×</button>
-    <h3>设置新密码</h3>
-    <form id="reset-form">
-      <label>新密码<input type="password" id="reset-password" required autocomplete="new-password"></label>
-      <label>再次输入新密码<input type="password" id="reset-password2" required autocomplete="new-password"></label>
-      <button class="btn btn-pill" type="submit" id="reset-submit">保存新密码</button>
-      <p class="form-msg" id="reset-msg"></p>
-    </form>
-  </div>
-</div>
-
-<script src="app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="assets/i18n.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/home.js"></script>
 </body>
 </html>

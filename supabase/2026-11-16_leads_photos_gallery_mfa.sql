@@ -1,0 +1,6 @@
+-- 已于 2026-11-16 在生产库执行（Supabase migration: leads_photos_gallery_mfa）
+-- 1) leads 表：网站表单线索（任何人可提交，只有管理员可看）
+-- 2) projects.gallery / projects.summary + public_projects 视图增加 gallery、summary、days_held
+-- 3) storage bucket "photos"：公开读，管理员上传/删除
+-- 4) is_admin()：已开通验证器的管理员必须完成两步验证（aal2）才有管理员权限
+-- 完整 SQL 见 Supabase Dashboard → Database → Migrations。

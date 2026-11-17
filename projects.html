@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>项目业绩 · iHome Capital</title>
+<meta name="description" content="iHome Capital 在南加州完成和进行中的住宅翻新项目：买入价、卖出价、持有周期。">
+<link rel="canonical" href="https://ihomecapital.com/projects.html">
+<meta property="og:title" content="项目业绩 · iHome Capital">
+<meta property="og:description" content="iHome Capital 在南加州完成和进行中的住宅翻新项目：买入价、卖出价、持有周期。">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body data-i18n-title="title.projects">
+<a class="sr-only" href="#main">跳到正文</a>
+<header id="site-header" class="site-header"><div class="wrap"><a class="brand" href="index.html">iHome Capital</a></div></header>
+<main id="main" class="wrap">
+  <section class="section" style="padding-top:56px" aria-labelledby="pt">
+    <h1 class="h-lg" id="pt" data-i18n="proj.title">项目业绩</h1>
+    <p class="lead" style="margin:10px 0 28px;max-width:720px" data-i18n="proj.sub">我们完成和正在进行的翻新项目。已完成项目列出真实的买入价、卖出价和持有天数。</p>
+    <div class="toolbar" style="justify-content:space-between;margin-bottom:24px">
+      <div class="chips" id="filters" role="group" aria-label="筛选"></div>
+      <label class="sr-only" for="q">搜索</label>
+      <input type="search" id="q" placeholder="搜索城市或地址" data-i18n-ph="proj.search" style="max-width:280px">
+    </div>
+    <div class="grid" id="grid" aria-live="polite"><p class="empty">加载中…</p></div>
+    <div style="text-align:center;margin-top:28px"><button class="btn hidden" type="button" id="more"></button></div>
+  </section>
+</main>
+<footer id="site-footer"></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="assets/i18n.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/projects.js"></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>投资人门户 · iHome Capital</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#FFFFFF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar no-print">
+    <a class="brand" href="index.html">iHome Capital</a>
+    <nav class="side-nav" id="side-nav" aria-label="投资人门户菜单"><button type="button" data-view="overview" class="on">我的投资</button>
+      <button type="button" data-view="rentals">出租物业</button>
+      <button type="button" data-view="account">账户</button></nav>
+    <div class="side-foot"><span id="who"></span><a href="index.html">← 回官网</a><a href="#" data-act="logout">退出登录</a></div>
+  </aside>
+  <main class="app-main" id="main" aria-live="polite"><p class="empty">加载中…</p></main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="assets/core.js"></script>
+<script src="assets/portal.js"></script>
+</body>
+</html>
